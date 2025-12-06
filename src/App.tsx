@@ -11,12 +11,15 @@ import BookingConfirmed from "./pages/BookingConfirmed";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Profile from "./pages/Profile";
+import ForgotPassword from "./pages/ForgotPassword";
+import Contact from "./pages/Contact";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import ManageMovies from "./pages/admin/ManageMovies";
 import ManageShowtimes from "./pages/admin/ManageShowtimes";
 import ManageScreens from "./pages/admin/ManageScreens";
 import ManageTickets from "./pages/admin/ManageTickets";
 import RevenueReports from "./pages/admin/RevenueReports";
+import ManageFeedback from "./pages/admin/ManageFeedback";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,6 +40,8 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/contact" element={<Contact />} />
           
           {/* Admin Routes */}
           <Route path="/admin" element={<AdminDashboard />} />
@@ -45,6 +50,7 @@ const App = () => (
           <Route path="/admin/screens" element={<ManageScreens />} />
           <Route path="/admin/tickets" element={<ManageTickets />} />
           <Route path="/admin/reports" element={<RevenueReports />} />
+          <Route path="/admin/feedback" element={<ManageFeedback />} />
           
           <Route path="*" element={<NotFound />} />
         </Routes>

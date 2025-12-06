@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Search, Pencil, Trash2, Filter } from 'lucide-react';
 import { movies } from '@/data/mockData';
-import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
+import { AddMovieDialog } from '@/components/admin/AddMovieDialog';
 
 const ManageMovies = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -133,6 +133,8 @@ const ManageMovies = () => {
           </div>
         </CardContent>
       </Card>
+      
+      <AddMovieDialog open={showAddModal} onOpenChange={setShowAddModal} />
     </AdminLayout>
   );
 };

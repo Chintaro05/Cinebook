@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User, Mail, Phone, Lock, Calendar, MapPin, Ticket, X } from 'lucide-react';
+import { User, Mail, Phone, Lock, Calendar, MapPin, Ticket, CreditCard, Receipt, Download } from 'lucide-react';
 import { CustomerLayout } from '@/components/layout/CustomerLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,8 +8,48 @@ import { bookings } from '@/data/mockData';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 
+interface Transaction {
+  id: string;
+  bookingId: string;
+  movieTitle: string;
+  amount: number;
+  paymentMethod: string;
+  status: 'completed' | 'pending' | 'refunded';
+  date: string;
+}
+
+const mockTransactions: Transaction[] = [
+  {
+    id: 'TXN001',
+    bookingId: '1',
+    movieTitle: 'Inception',
+    amount: 30.00,
+    paymentMethod: 'Credit Card ****4242',
+    status: 'completed',
+    date: '2024-12-10 14:30',
+  },
+  {
+    id: 'TXN002',
+    bookingId: '2',
+    movieTitle: 'The Dark Knight',
+    amount: 45.00,
+    paymentMethod: 'PayPal',
+    status: 'completed',
+    date: '2024-12-12 10:15',
+  },
+  {
+    id: 'TXN003',
+    bookingId: '3',
+    movieTitle: 'Interstellar',
+    amount: 25.00,
+    paymentMethod: 'Credit Card ****1234',
+    status: 'refunded',
+    date: '2024-12-08 18:45',
+  },
+];
+
 const Profile = () => {
-  const [activeTab, setActiveTab] = useState<'profile' | 'bookings'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'bookings' | 'transactions'>('profile');
   const [isEditing, setIsEditing] = useState(false);
   const [profileData, setProfileData] = useState({
     name: 'John Doe',
@@ -32,6 +72,13 @@ const Profile = () => {
     });
   };
 
+  const handleDownloadReceipt = (transactionId: string) => {
+    toast({
+      title: "Downloading Receipt",
+      description: `Receipt for transaction ${transactionId} is being downloaded.`,
+    });
+  };
+
   return (
     <CustomerLayout>
       <div className="min-h-screen py-24">
@@ -39,17 +86,18 @@ const Profile = () => {
           <h1 className="text-3xl font-bold text-foreground mb-8">My Account</h1>
 
           {/* Tabs */}
-          <div className="flex gap-4 mb-8 border-b border-border">
+          <div className="flex gap-4 mb-8 border-b border-border overflow-x-auto">
             <button
               onClick={() => setActiveTab('profile')}
               className={cn(
-                "pb-4 px-2 font-medium transition-all relative",
+                "pb-4 px-2 font-medium transition-all relative whitespace-nowrap",
                 activeTab === 'profile'
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              Profile Details
+              <User className="w-4 h-4 inline mr-2" />
+              Profile
               {activeTab === 'profile' && (
                 <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
               )}
@@ -57,14 +105,30 @@ const Profile = () => {
             <button
               onClick={() => setActiveTab('bookings')}
               className={cn(
-                "pb-4 px-2 font-medium transition-all relative",
+                "pb-4 px-2 font-medium transition-all relative whitespace-nowrap",
                 activeTab === 'bookings'
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
+              <Ticket className="w-4 h-4 inline mr-2" />
               Booking History
               {activeTab === 'bookings' && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('transactions')}
+              className={cn(
+                "pb-4 px-2 font-medium transition-all relative whitespace-nowrap",
+                activeTab === 'transactions'
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <CreditCard className="w-4 h-4 inline mr-2" />
+              Payment History
+              {activeTab === 'transactions' && (
                 <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
               )}
             </button>
@@ -251,6 +315,88 @@ const Profile = () => {
                     </div>
                   </Card>
                 ))
+              )}
+            </div>
+          )}
+
+          {/* Transactions Tab */}
+          {activeTab === 'transactions' && (
+            <div className="space-y-4 animate-fade-in">
+              {mockTransactions.length === 0 ? (
+                <Card className="p-12 bg-card border-border text-center">
+                  <Receipt className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-foreground mb-2">No Transactions Yet</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Your payment history will appear here after you make a booking.
+                  </p>
+                </Card>
+              ) : (
+                <>
+                  {/* Summary Cards */}
+                  <div className="grid grid-cols-3 gap-4 mb-6">
+                    <Card className="p-4 bg-card border-border">
+                      <p className="text-sm text-muted-foreground">Total Spent</p>
+                      <p className="text-2xl font-bold text-foreground">
+                        ${mockTransactions.filter(t => t.status === 'completed').reduce((sum, t) => sum + t.amount, 0).toFixed(2)}
+                      </p>
+                    </Card>
+                    <Card className="p-4 bg-card border-border">
+                      <p className="text-sm text-muted-foreground">Transactions</p>
+                      <p className="text-2xl font-bold text-foreground">{mockTransactions.length}</p>
+                    </Card>
+                    <Card className="p-4 bg-card border-border">
+                      <p className="text-sm text-muted-foreground">Refunded</p>
+                      <p className="text-2xl font-bold text-warning">
+                        ${mockTransactions.filter(t => t.status === 'refunded').reduce((sum, t) => sum + t.amount, 0).toFixed(2)}
+                      </p>
+                    </Card>
+                  </div>
+
+                  {/* Transaction List */}
+                  {mockTransactions.map((transaction) => (
+                    <Card key={transaction.id} className="p-4 bg-card border-border">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                            <CreditCard className="w-5 h-5 text-primary" />
+                          </div>
+                          <div>
+                            <h3 className="font-medium text-foreground">{transaction.movieTitle}</h3>
+                            <p className="text-sm text-muted-foreground">
+                              {transaction.paymentMethod} • {transaction.date}
+                            </p>
+                            <p className="text-xs text-muted-foreground">ID: {transaction.id}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className={cn(
+                              "font-bold",
+                              transaction.status === 'refunded' ? 'text-warning' : 'text-foreground'
+                            )}>
+                              {transaction.status === 'refunded' && '-'}${transaction.amount.toFixed(2)}
+                            </p>
+                            <span className={cn(
+                              "text-xs px-2 py-0.5 rounded-full",
+                              transaction.status === 'completed' && "bg-success/20 text-success",
+                              transaction.status === 'pending' && "bg-warning/20 text-warning",
+                              transaction.status === 'refunded' && "bg-muted text-muted-foreground"
+                            )}>
+                              {transaction.status}
+                            </span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDownloadReceipt(transaction.id)}
+                          >
+                            <Download className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </>
               )}
             </div>
           )}

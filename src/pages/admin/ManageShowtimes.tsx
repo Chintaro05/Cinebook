@@ -2,13 +2,27 @@ import { useState } from 'react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Calendar, Pencil, Trash2, Film, Monitor, Clock } from 'lucide-react';
-import { movies, cinemas, screens, showtimes } from '@/data/mockData';
+import { Plus, Pencil, Trash2, Monitor } from 'lucide-react';
+import { movies, screens, showtimes } from '@/data/mockData';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
+import { AddShowtimeDialog } from '@/components/admin/AddShowtimeDialog';
+import { EditShowtimeDialog } from '@/components/admin/EditShowtimeDialog';
+
+interface Showtime {
+  id: string;
+  movieId: string;
+  screenId: string;
+  date: string;
+  time: string;
+  price: number;
+}
 
 const ManageShowtimes = () => {
   const [selectedDate, setSelectedDate] = useState('2024-12-20');
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [selectedShowtime, setSelectedShowtime] = useState<Showtime | null>(null);
 
   const dates = [
     { date: '2024-12-20', label: 'Today' },
@@ -17,6 +31,11 @@ const ManageShowtimes = () => {
     { date: '2024-12-23', label: 'Mon' },
     { date: '2024-12-24', label: 'Tue' },
   ];
+
+  const handleEdit = (showtime: typeof showtimes[0]) => {
+    setSelectedShowtime(showtime);
+    setEditDialogOpen(true);
+  };
 
   const handleDelete = (id: string) => {
     toast({
@@ -30,7 +49,7 @@ const ManageShowtimes = () => {
       <Card className="bg-card border-border">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg">Schedule Management</CardTitle>
-          <Button variant="cinema" className="gap-2">
+          <Button variant="cinema" className="gap-2" onClick={() => setAddDialogOpen(true)}>
             <Plus className="w-4 h-4" />
             Add New Showtime
           </Button>
@@ -79,7 +98,12 @@ const ManageShowtimes = () => {
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-semibold text-foreground">{showtime.time}</span>
                         <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                          <Button variant="ghost" size="icon" className="h-6 w-6">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-6 w-6"
+                            onClick={() => handleEdit(showtime)}
+                          >
                             <Pencil className="w-3 h-3" />
                           </Button>
                           <Button 
@@ -109,6 +133,13 @@ const ManageShowtimes = () => {
           </div>
         </CardContent>
       </Card>
+
+      <AddShowtimeDialog open={addDialogOpen} onOpenChange={setAddDialogOpen} />
+      <EditShowtimeDialog 
+        showtime={selectedShowtime} 
+        open={editDialogOpen} 
+        onOpenChange={setEditDialogOpen} 
+      />
     </AdminLayout>
   );
 };

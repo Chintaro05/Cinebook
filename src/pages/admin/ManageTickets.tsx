@@ -1,11 +1,30 @@
+import { useState } from 'react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, Pencil, Trash2, Ticket } from 'lucide-react';
 import { ticketTypes } from '@/data/mockData';
 import { toast } from '@/hooks/use-toast';
+import { AddTicketTypeDialog } from '@/components/admin/AddTicketTypeDialog';
+import { EditTicketTypeDialog } from '@/components/admin/EditTicketTypeDialog';
+
+interface TicketType {
+  id: string;
+  name: string;
+  priceModifier: number;
+  description: string;
+}
 
 const ManageTickets = () => {
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [selectedTicketType, setSelectedTicketType] = useState<TicketType | null>(null);
+
+  const handleEdit = (ticketType: TicketType) => {
+    setSelectedTicketType(ticketType);
+    setEditDialogOpen(true);
+  };
+
   const handleDelete = (id: string, name: string) => {
     toast({
       title: "Ticket Type Deleted",
@@ -18,7 +37,7 @@ const ManageTickets = () => {
       <Card className="bg-card border-border">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg">All Ticket Types</CardTitle>
-          <Button variant="cinema" className="gap-2">
+          <Button variant="cinema" className="gap-2" onClick={() => setAddDialogOpen(true)}>
             <Plus className="w-4 h-4" />
             Add Ticket Type
           </Button>
@@ -66,7 +85,12 @@ const ManageTickets = () => {
                     </td>
                     <td className="py-4 px-4">
                       <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8"
+                          onClick={() => handleEdit(type)}
+                        >
                           <Pencil className="w-4 h-4" />
                         </Button>
                         <Button 
@@ -86,6 +110,13 @@ const ManageTickets = () => {
           </div>
         </CardContent>
       </Card>
+
+      <AddTicketTypeDialog open={addDialogOpen} onOpenChange={setAddDialogOpen} />
+      <EditTicketTypeDialog 
+        ticketType={selectedTicketType} 
+        open={editDialogOpen} 
+        onOpenChange={setEditDialogOpen} 
+      />
     </AdminLayout>
   );
 };

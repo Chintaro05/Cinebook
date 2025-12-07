@@ -10,6 +10,7 @@ export interface Movie {
   director: string;
   cast: CastMember[];
   trailerUrl?: string;
+  isNowShowing?: boolean;
 }
 
 export interface CastMember {

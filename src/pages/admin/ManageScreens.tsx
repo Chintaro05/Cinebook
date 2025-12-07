@@ -1,11 +1,31 @@
+import { useState } from 'react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, Pencil, Trash2, Monitor, Users } from 'lucide-react';
 import { screens } from '@/data/mockData';
 import { toast } from '@/hooks/use-toast';
+import { AddScreenDialog } from '@/components/admin/AddScreenDialog';
+import { EditScreenDialog } from '@/components/admin/EditScreenDialog';
+
+interface Screen {
+  id: string;
+  name: string;
+  capacity: number;
+  rows: number;
+  seatsPerRow: number;
+}
 
 const ManageScreens = () => {
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [selectedScreen, setSelectedScreen] = useState<Screen | null>(null);
+
+  const handleEdit = (screen: Screen) => {
+    setSelectedScreen(screen);
+    setEditDialogOpen(true);
+  };
+
   const handleDelete = (id: string, name: string) => {
     toast({
       title: "Screen Deleted",
@@ -18,7 +38,7 @@ const ManageScreens = () => {
       <Card className="bg-card border-border">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg">All Screening Rooms</CardTitle>
-          <Button variant="cinema" className="gap-2">
+          <Button variant="cinema" className="gap-2" onClick={() => setAddDialogOpen(true)}>
             <Plus className="w-4 h-4" />
             Add Room
           </Button>
@@ -33,7 +53,12 @@ const ManageScreens = () => {
                       <Monitor className="w-6 h-6 text-primary" />
                     </div>
                     <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8"
+                        onClick={() => handleEdit(screen)}
+                      >
                         <Pencil className="w-4 h-4" />
                       </Button>
                       <Button 
@@ -80,6 +105,13 @@ const ManageScreens = () => {
           </div>
         </CardContent>
       </Card>
+
+      <AddScreenDialog open={addDialogOpen} onOpenChange={setAddDialogOpen} />
+      <EditScreenDialog 
+        screen={selectedScreen} 
+        open={editDialogOpen} 
+        onOpenChange={setEditDialogOpen} 
+      />
     </AdminLayout>
   );
 };

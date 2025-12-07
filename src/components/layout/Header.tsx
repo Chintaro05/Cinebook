@@ -83,7 +83,7 @@ export function Header() {
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-8">
             <Link 
-              to="/" 
+              to="/now-showing" 
               className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
               Now Showing
@@ -254,7 +254,7 @@ export function Header() {
               )}
 
               <Link 
-                to="/" 
+                to="/now-showing" 
                 className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
                 onClick={() => setIsMobileMenuOpen(false)}
               >

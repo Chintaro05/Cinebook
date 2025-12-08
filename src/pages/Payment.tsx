@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CreditCard, Wallet, Lock, Check } from 'lucide-react';
+import { ArrowLeft, CreditCard, Wallet, Lock } from 'lucide-react';
 import { CustomerLayout } from '@/components/layout/CustomerLayout';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -8,10 +8,13 @@ import { Input } from '@/components/ui/input';
 import { movies, cinemas } from '@/data/mockData';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
+import { paymentFormSchema } from '@/lib/validation';
 
 const Payment = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { user, isLoading } = useAuth();
   
   const movieId = searchParams.get('movie') || '';
   const cinemaId = searchParams.get('cinema') || '';
@@ -29,11 +32,38 @@ const Payment = () => {
   const [expiry, setExpiry] = useState('');
   const [cvv, setCvv] = useState('');
   const [cardName, setCardName] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const pricePerSeat = 15.00;
   const subtotal = seats.length * pricePerSeat;
   const serviceFee = 2.50;
   const total = subtotal + serviceFee;
+
+  // Redirect unauthenticated users to login
+  useEffect(() => {
+    if (!isLoading && !user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to complete your booking.",
+        variant: "destructive",
+      });
+      navigate('/login', { state: { returnTo: `/payment${window.location.search}` } });
+    }
+  }, [user, isLoading, navigate]);
+
+  if (isLoading) {
+    return (
+      <CustomerLayout>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </CustomerLayout>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   if (!movie) {
     return (
@@ -45,12 +75,35 @@ const Payment = () => {
     );
   }
 
+  const validateCardForm = (): boolean => {
+    const result = paymentFormSchema.safeParse({
+      cardNumber,
+      expiry,
+      cvv,
+      cardName,
+    });
+
+    if (!result.success) {
+      const fieldErrors: Record<string, string> = {};
+      result.error.errors.forEach((err) => {
+        if (err.path[0]) {
+          fieldErrors[err.path[0] as string] = err.message;
+        }
+      });
+      setErrors(fieldErrors);
+      return false;
+    }
+
+    setErrors({});
+    return true;
+  };
+
   const handlePayment = async () => {
     if (paymentMethod === 'card') {
-      if (!cardNumber || !expiry || !cvv || !cardName) {
+      if (!validateCardForm()) {
         toast({
-          title: "Missing Information",
-          description: "Please fill in all card details.",
+          title: "Validation Error",
+          description: "Please correct the errors in your card details.",
           variant: "destructive",
         });
         return;
@@ -178,7 +231,11 @@ const Payment = () => {
                         placeholder="John Doe"
                         value={cardName}
                         onChange={(e) => setCardName(e.target.value)}
+                        className={errors.cardName ? "border-destructive" : ""}
                       />
+                      {errors.cardName && (
+                        <p className="text-sm text-destructive mt-1">{errors.cardName}</p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-muted-foreground mb-2">
@@ -189,7 +246,11 @@ const Payment = () => {
                         value={cardNumber}
                         onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
                         maxLength={19}
+                        className={errors.cardNumber ? "border-destructive" : ""}
                       />
+                      {errors.cardNumber && (
+                        <p className="text-sm text-destructive mt-1">{errors.cardNumber}</p>
+                      )}
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -201,7 +262,11 @@ const Payment = () => {
                           value={expiry}
                           onChange={(e) => setExpiry(formatExpiry(e.target.value))}
                           maxLength={5}
+                          className={errors.expiry ? "border-destructive" : ""}
                         />
+                        {errors.expiry && (
+                          <p className="text-sm text-destructive mt-1">{errors.expiry}</p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-muted-foreground mb-2">
@@ -211,9 +276,13 @@ const Payment = () => {
                           type="password"
                           placeholder="•••"
                           value={cvv}
-                          onChange={(e) => setCvv(e.target.value.replace(/\D/g, '').substring(0, 3))}
-                          maxLength={3}
+                          onChange={(e) => setCvv(e.target.value.replace(/\D/g, '').substring(0, 4))}
+                          maxLength={4}
+                          className={errors.cvv ? "border-destructive" : ""}
                         />
+                        {errors.cvv && (
+                          <p className="text-sm text-destructive mt-1">{errors.cvv}</p>
+                        )}
                       </div>
                     </div>
                   </div>

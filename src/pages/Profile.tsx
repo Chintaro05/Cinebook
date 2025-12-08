@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { bookings } from '@/data/mockData';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
+import { profileFormSchema, ProfileFormData } from '@/lib/validation';
 
 interface Transaction {
   id: string;
@@ -56,8 +57,31 @@ const Profile = () => {
     email: 'john.doe@example.com',
     phone: '+1 234 567 8900',
   });
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   const handleSave = () => {
+    const result = profileFormSchema.safeParse({
+      fullName: profileData.name,
+      email: profileData.email,
+      phone: profileData.phone,
+    });
+
+    if (!result.success) {
+      const fieldErrors: { [key: string]: string } = {};
+      result.error.errors.forEach((err) => {
+        const field = err.path[0] as string;
+        fieldErrors[field] = err.message;
+      });
+      setErrors(fieldErrors);
+      toast({
+        title: "Validation Error",
+        description: "Please correct the highlighted fields.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setErrors({});
     toast({
       title: "Profile Updated",
       description: "Your profile has been successfully updated.",
@@ -158,11 +182,17 @@ const Profile = () => {
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                       <Input
                         value={profileData.name}
-                        onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
+                        onChange={(e) => {
+                          setProfileData({ ...profileData, name: e.target.value });
+                          if (errors.fullName) setErrors({ ...errors, fullName: '' });
+                        }}
                         disabled={!isEditing}
-                        className="pl-10"
+                        className={cn("pl-10", errors.fullName && "border-destructive")}
                       />
                     </div>
+                    {errors.fullName && (
+                      <p className="text-sm text-destructive mt-1">{errors.fullName}</p>
+                    )}
                   </div>
 
                   <div>
@@ -174,11 +204,17 @@ const Profile = () => {
                       <Input
                         type="email"
                         value={profileData.email}
-                        onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
+                        onChange={(e) => {
+                          setProfileData({ ...profileData, email: e.target.value });
+                          if (errors.email) setErrors({ ...errors, email: '' });
+                        }}
                         disabled={!isEditing}
-                        className="pl-10"
+                        className={cn("pl-10", errors.email && "border-destructive")}
                       />
                     </div>
+                    {errors.email && (
+                      <p className="text-sm text-destructive mt-1">{errors.email}</p>
+                    )}
                   </div>
 
                   <div>
@@ -190,11 +226,17 @@ const Profile = () => {
                       <Input
                         type="tel"
                         value={profileData.phone}
-                        onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                        onChange={(e) => {
+                          setProfileData({ ...profileData, phone: e.target.value });
+                          if (errors.phone) setErrors({ ...errors, phone: '' });
+                        }}
                         disabled={!isEditing}
-                        className="pl-10"
+                        className={cn("pl-10", errors.phone && "border-destructive")}
                       />
                     </div>
+                    {errors.phone && (
+                      <p className="text-sm text-destructive mt-1">{errors.phone}</p>
+                    )}
                   </div>
 
                   {isEditing && (

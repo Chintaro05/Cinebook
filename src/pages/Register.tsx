@@ -1,15 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, Film, User, Phone, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 import heroCinema from '@/assets/hero-cinema.jpg';
 
 const Register = () => {
   const navigate = useNavigate();
+  const { signUp, user, isLoading: authLoading } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -22,6 +23,13 @@ const Register = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user && !authLoading) {
+      navigate('/');
+    }
+  }, [user, authLoading, navigate]);
 
   const passwordRequirements = [
     { label: 'At least 8 characters', met: formData.password.length >= 8 },
@@ -79,16 +87,44 @@ const Register = () => {
     
     setIsLoading(true);
     
-    // Simulate registration
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    const { error } = await signUp(formData.email, formData.password, formData.name, formData.phone);
+    
+    if (error) {
+      let errorMessage = 'An error occurred during registration';
+      
+      if (error.message.includes('User already registered')) {
+        errorMessage = 'An account with this email already exists';
+      } else if (error.message.includes('Password')) {
+        errorMessage = error.message;
+      } else {
+        errorMessage = error.message;
+      }
+      
+      toast({
+        title: "Registration Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
     
     toast({
       title: "Account Created!",
-      description: "Welcome to CineBook. You can now sign in.",
+      description: "Welcome to CineBook. You are now signed in.",
     });
     
-    navigate('/login');
+    setIsLoading(false);
+    navigate('/');
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex">

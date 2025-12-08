@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import NowShowing from "./pages/NowShowing";
 import MovieDetail from "./pages/MovieDetail";
@@ -32,32 +33,34 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          {/* Customer Routes */}
-          <Route path="/" element={<Index />} />
-          <Route path="/now-showing" element={<NowShowing />} />
-          <Route path="/movie/:id" element={<MovieDetail />} />
-          <Route path="/seats/:id" element={<SeatSelection />} />
-          <Route path="/payment" element={<Payment />} />
-          <Route path="/booking-confirmed" element={<BookingConfirmed />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/contact" element={<Contact />} />
-          
-          {/* Admin Routes */}
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/movies" element={<ManageMovies />} />
-          <Route path="/admin/showtimes" element={<ManageShowtimes />} />
-          <Route path="/admin/screens" element={<ManageScreens />} />
-          <Route path="/admin/tickets" element={<ManageTickets />} />
-          <Route path="/admin/reports" element={<RevenueReports />} />
-          <Route path="/admin/feedback" element={<ManageFeedback />} />
-          <Route path="/admin/users" element={<ManageUsers />} />
-          
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            {/* Customer Routes */}
+            <Route path="/" element={<Index />} />
+            <Route path="/now-showing" element={<NowShowing />} />
+            <Route path="/movie/:id" element={<MovieDetail />} />
+            <Route path="/seats/:id" element={<SeatSelection />} />
+            <Route path="/payment" element={<Payment />} />
+            <Route path="/booking-confirmed" element={<BookingConfirmed />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/contact" element={<Contact />} />
+            
+            {/* Admin Routes */}
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/movies" element={<ManageMovies />} />
+            <Route path="/admin/showtimes" element={<ManageShowtimes />} />
+            <Route path="/admin/screens" element={<ManageScreens />} />
+            <Route path="/admin/tickets" element={<ManageTickets />} />
+            <Route path="/admin/reports" element={<RevenueReports />} />
+            <Route path="/admin/feedback" element={<ManageFeedback />} />
+            <Route path="/admin/users" element={<ManageUsers />} />
+            
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

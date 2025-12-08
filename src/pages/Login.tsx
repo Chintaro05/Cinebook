@@ -1,19 +1,32 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, Film } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import heroCinema from '@/assets/hero-cinema.jpg';
 
 const Login = () => {
   const navigate = useNavigate();
+  const { signIn, user, isAdmin, isLoading: authLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user && !authLoading) {
+      if (isAdmin) {
+        navigate('/admin');
+      } else {
+        navigate('/');
+      }
+    }
+  }, [user, isAdmin, authLoading, navigate]);
 
   const validateForm = () => {
     const newErrors: { email?: string; password?: string } = {};
@@ -41,20 +54,43 @@ const Login = () => {
     
     setIsLoading(true);
     
-    // Simulate login
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    const { error } = await signIn(email, password);
     
-    // Demo: Check for admin credentials
-    if (email === 'admin@cinebook.com') {
-      toast({ title: "Welcome Admin!", description: "Redirecting to dashboard..." });
-      navigate('/admin');
-    } else {
-      toast({ title: "Welcome back!", description: "You have successfully logged in." });
-      navigate('/');
+    if (error) {
+      let errorMessage = 'An error occurred during sign in';
+      
+      if (error.message.includes('Invalid login credentials')) {
+        errorMessage = 'Invalid email or password';
+      } else if (error.message.includes('Email not confirmed')) {
+        errorMessage = 'Please confirm your email before signing in';
+      } else {
+        errorMessage = error.message;
+      }
+      
+      toast({
+        title: "Sign In Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
     }
+    
+    toast({
+      title: "Welcome back!",
+      description: "You have successfully signed in.",
+    });
     
     setIsLoading(false);
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex">
@@ -178,11 +214,6 @@ const Login = () => {
             <Link to="/register" className="text-primary hover:underline font-medium">
               Create Account
             </Link>
-          </p>
-
-          {/* Demo Hint */}
-          <p className="text-center text-xs text-muted-foreground">
-            Demo: Use <span className="text-foreground">admin@cinebook.com</span> for admin access
           </p>
         </div>
       </div>

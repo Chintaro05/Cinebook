@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import ProtectedAdminRoute from "@/components/ProtectedAdminRoute";
 import Index from "./pages/Index";
 import NowShowing from "./pages/NowShowing";
 import MovieDetail from "./pages/MovieDetail";
@@ -49,14 +50,14 @@ const App = () => (
             <Route path="/contact" element={<Contact />} />
             
             {/* Admin Routes */}
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/admin/movies" element={<ManageMovies />} />
-            <Route path="/admin/showtimes" element={<ManageShowtimes />} />
-            <Route path="/admin/screens" element={<ManageScreens />} />
-            <Route path="/admin/tickets" element={<ManageTickets />} />
-            <Route path="/admin/reports" element={<RevenueReports />} />
-            <Route path="/admin/feedback" element={<ManageFeedback />} />
-            <Route path="/admin/users" element={<ManageUsers />} />
+            <Route path="/admin" element={<ProtectedAdminRoute><AdminDashboard /></ProtectedAdminRoute>} />
+            <Route path="/admin/movies" element={<ProtectedAdminRoute><ManageMovies /></ProtectedAdminRoute>} />
+            <Route path="/admin/showtimes" element={<ProtectedAdminRoute><ManageShowtimes /></ProtectedAdminRoute>} />
+            <Route path="/admin/screens" element={<ProtectedAdminRoute><ManageScreens /></ProtectedAdminRoute>} />
+            <Route path="/admin/tickets" element={<ProtectedAdminRoute><ManageTickets /></ProtectedAdminRoute>} />
+            <Route path="/admin/reports" element={<ProtectedAdminRoute><RevenueReports /></ProtectedAdminRoute>} />
+            <Route path="/admin/feedback" element={<ProtectedAdminRoute><ManageFeedback /></ProtectedAdminRoute>} />
+            <Route path="/admin/users" element={<ProtectedAdminRoute><ManageUsers /></ProtectedAdminRoute>} />
             
             <Route path="*" element={<NotFound />} />
           </Routes>

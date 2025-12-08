@@ -98,7 +98,7 @@ const Index = () => {
                   </ul>
                 </div>
               </div>
-              <div className="mt-8 pt-8 border-t border-border text-center text-sm text-muted-foreground">© 2024 CineBook. All rights reserved by Group 10.</div>
+              <div className="mt-8 pt-8 border-t border-border text-center text-sm text-muted-foreground">© 2025 CineBook. All rights reserved by Group 10 HCMUS.</div>
             </div>
           </footer>
         </>}

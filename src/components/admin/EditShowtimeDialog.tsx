@@ -15,19 +15,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { toast } from '@/hooks/use-toast';
-import { movies, screens, showtimes } from '@/data/mockData';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Save, Loader2, Clock, Calendar, DollarSign } from 'lucide-react';
-
-interface Showtime {
-  id: string;
-  movieId: string;
-  screenId: string;
-  date: string;
-  time: string;
-  price: number;
-}
+import { useMovies } from '@/hooks/useMovies';
+import { useScreens } from '@/hooks/useScreens';
+import { useShowtimes, useUpdateShowtime, Showtime } from '@/hooks/useShowtimes';
 
 interface EditShowtimeDialogProps {
   showtime: Showtime | null;
@@ -36,7 +28,6 @@ interface EditShowtimeDialogProps {
 }
 
 export function EditShowtimeDialog({ showtime, open, onOpenChange }: EditShowtimeDialogProps) {
-  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     movieId: '',
     screenId: '',
@@ -47,65 +38,57 @@ export function EditShowtimeDialog({ showtime, open, onOpenChange }: EditShowtim
   const [hasConflict, setHasConflict] = useState(false);
   const [conflictDetails, setConflictDetails] = useState('');
 
-  // Pre-populate form when showtime data is available
+  const { data: movies = [] } = useMovies();
+  const { data: screens = [] } = useScreens();
+  const { data: allShowtimes = [] } = useShowtimes();
+  const updateShowtime = useUpdateShowtime();
+
   useEffect(() => {
     if (showtime) {
       setFormData({
-        movieId: showtime.movieId,
-        screenId: showtime.screenId,
-        date: showtime.date,
-        time: showtime.time,
-        price: showtime.price.toString(),
+        movieId: showtime.movie_id,
+        screenId: showtime.screen_id,
+        date: showtime.show_date,
+        time: showtime.show_time.slice(0, 5),
+        price: String(showtime.price),
       });
       setHasConflict(false);
     }
   }, [showtime]);
 
-  // Check for conflicts when time/screen changes
   useEffect(() => {
     if (formData.screenId && formData.date && formData.time && showtime) {
-      const conflict = showtimes.find(
+      const conflict = allShowtimes.find(
         s => s.id !== showtime.id && 
-             s.screenId === formData.screenId && 
-             s.date === formData.date &&
-             Math.abs(parseInt(s.time.split(':')[0]) - parseInt(formData.time.split(':')[0])) < 3
+             s.screen_id === formData.screenId && 
+             s.show_date === formData.date &&
+             Math.abs(parseInt(s.show_time.split(':')[0]) - parseInt(formData.time.split(':')[0])) < 3
       );
       
       if (conflict) {
-        const movie = movies.find(m => m.id === conflict.movieId);
+        const movie = movies.find(m => m.id === conflict.movie_id);
         setHasConflict(true);
-        setConflictDetails(`Conflict with "${movie?.title}" at ${conflict.time}`);
+        setConflictDetails(`Conflict with "${movie?.title || 'Unknown'}" at ${conflict.show_time.slice(0, 5)}`);
       } else {
         setHasConflict(false);
         setConflictDetails('');
       }
     }
-  }, [formData.screenId, formData.date, formData.time, showtime]);
+  }, [formData.screenId, formData.date, formData.time, showtime, allShowtimes, movies]);
 
   const handleSubmit = async () => {
-    if (hasConflict) {
-      toast({
-        title: "Schedule Conflict",
-        description: "Please resolve the time conflict before saving.",
-        variant: "destructive",
-      });
-      return;
-    }
+    if (hasConflict || !showtime) return;
 
-    setIsLoading(true);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    const movie = movies.find(m => m.id === formData.movieId);
-    
-    toast({
-      title: "Showtime Updated",
-      description: `Showtime for "${movie?.title}" has been updated.`,
+    updateShowtime.mutate({
+      id: showtime.id,
+      movie_id: formData.movieId,
+      screen_id: formData.screenId,
+      show_date: formData.date,
+      show_time: formData.time,
+      price: parseFloat(formData.price),
+    }, {
+      onSuccess: () => onOpenChange(false)
     });
-    
-    setIsLoading(false);
-    onOpenChange(false);
   };
 
   if (!showtime) return null;
@@ -125,17 +108,17 @@ export function EditShowtimeDialog({ showtime, open, onOpenChange }: EditShowtim
           <div className="p-4 rounded-lg bg-secondary/30 border border-border">
             <p className="text-sm text-muted-foreground mb-2">Current Selection:</p>
             <div className="flex items-center gap-3">
-              {currentMovie && (
+              {currentMovie?.poster_url && (
                 <img
-                  src={currentMovie.posterUrl}
+                  src={currentMovie.poster_url}
                   alt={currentMovie.title}
                   className="w-12 h-16 object-cover rounded"
                 />
               )}
               <div>
-                <p className="font-semibold text-foreground">{currentMovie?.title}</p>
+                <p className="font-semibold text-foreground">{currentMovie?.title || 'Select a movie'}</p>
                 <p className="text-sm text-muted-foreground">
-                  {currentScreen?.name} • {formData.date} • {formData.time}
+                  {currentScreen?.name || 'Select a screen'} • {formData.date} • {formData.time}
                 </p>
               </div>
             </div>
@@ -240,15 +223,15 @@ export function EditShowtimeDialog({ showtime, open, onOpenChange }: EditShowtim
         </div>
 
         <div className="flex justify-end gap-3 pt-4 border-t border-border">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={updateShowtime.isPending}>
             Cancel
           </Button>
           <Button 
             variant="cinema" 
             onClick={handleSubmit} 
-            disabled={isLoading || hasConflict}
+            disabled={updateShowtime.isPending || hasConflict}
           >
-            {isLoading ? (
+            {updateShowtime.isPending ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Updating...

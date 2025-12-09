@@ -3,8 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { toast } from '@/hooks/use-toast';
-import { Upload, X, Plus, Calendar } from 'lucide-react';
+import { Upload, X, Plus } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -19,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useCreateMovie } from '@/hooks/useMovies';
 
 interface AddMovieDialogProps {
   open: boolean;
@@ -37,11 +37,12 @@ export const AddMovieDialog = ({ open, onOpenChange }: AddMovieDialogProps) => {
     releaseDate: '',
     rating: '',
     trailerUrl: '',
+    posterUrl: '',
   });
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
-  const [posterPreview, setPosterPreview] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const createMovie = useCreateMovie();
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -59,18 +60,23 @@ export const AddMovieDialog = ({ open, onOpenChange }: AddMovieDialogProps) => {
   const handleSubmit = async () => {
     if (!validateForm()) return;
     
-    setIsSubmitting(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    toast({
-      title: "Movie Added",
-      description: `"${formData.title}" has been added successfully.`,
+    createMovie.mutate({
+      title: formData.title,
+      duration: parseInt(formData.duration),
+      synopsis: formData.synopsis,
+      director: formData.director,
+      release_date: formData.releaseDate,
+      rating: formData.rating,
+      genre: selectedGenres,
+      trailer_url: formData.trailerUrl || undefined,
+      poster_url: formData.posterUrl || undefined,
+      status: 'now_showing',
+    }, {
+      onSuccess: () => {
+        resetForm();
+        onOpenChange(false);
+      }
     });
-    
-    resetForm();
-    onOpenChange(false);
-    setIsSubmitting(false);
   };
 
   const resetForm = () => {
@@ -82,9 +88,9 @@ export const AddMovieDialog = ({ open, onOpenChange }: AddMovieDialogProps) => {
       releaseDate: '',
       rating: '',
       trailerUrl: '',
+      posterUrl: '',
     });
     setSelectedGenres([]);
-    setPosterPreview(null);
     setErrors({});
   };
 
@@ -96,25 +102,6 @@ export const AddMovieDialog = ({ open, onOpenChange }: AddMovieDialogProps) => {
     );
   };
 
-  const handlePosterDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (e) => setPosterPreview(e.target?.result as string);
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handlePosterSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => setPosterPreview(e.target?.result as string);
-      reader.readAsDataURL(file);
-    }
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-card border-border max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -123,113 +110,81 @@ export const AddMovieDialog = ({ open, onOpenChange }: AddMovieDialogProps) => {
         </DialogHeader>
         
         <div className="grid gap-6 py-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Poster Upload */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Movie Poster</Label>
-              <div
-                className={`relative aspect-[2/3] rounded-lg border-2 border-dashed transition-colors ${
-                  posterPreview ? 'border-primary' : 'border-border hover:border-primary/50'
-                }`}
-                onDrop={handlePosterDrop}
-                onDragOver={(e) => e.preventDefault()}
-              >
-                {posterPreview ? (
-                  <>
-                    <img src={posterPreview} alt="Poster preview" className="w-full h-full object-cover rounded-lg" />
-                    <button
-                      onClick={() => setPosterPreview(null)}
-                      className="absolute top-2 right-2 p-1 rounded-full bg-destructive text-destructive-foreground"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </>
-                ) : (
-                  <label className="flex flex-col items-center justify-center h-full cursor-pointer">
-                    <Upload className="w-8 h-8 text-muted-foreground mb-2" />
-                    <span className="text-sm text-muted-foreground text-center px-2">
-                      Drop image here or click to upload
-                    </span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handlePosterSelect}
-                    />
-                  </label>
-                )}
-              </div>
+              <Label htmlFor="title">Title *</Label>
+              <Input
+                id="title"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                placeholder="Enter movie title"
+                className={errors.title ? 'border-destructive' : ''}
+              />
+              {errors.title && <p className="text-xs text-destructive">{errors.title}</p>}
             </div>
 
-            {/* Main Form Fields */}
-            <div className="md:col-span-2 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="title">Title *</Label>
-                <Input
-                  id="title"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="Enter movie title"
-                  className={errors.title ? 'border-destructive' : ''}
-                />
-                {errors.title && <p className="text-xs text-destructive">{errors.title}</p>}
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="posterUrl">Poster URL</Label>
+              <Input
+                id="posterUrl"
+                value={formData.posterUrl}
+                onChange={(e) => setFormData({ ...formData, posterUrl: e.target.value })}
+                placeholder="https://..."
+              />
+            </div>
+          </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="duration">Duration (minutes) *</Label>
-                  <Input
-                    id="duration"
-                    type="number"
-                    value={formData.duration}
-                    onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
-                    placeholder="e.g., 120"
-                    className={errors.duration ? 'border-destructive' : ''}
-                  />
-                  {errors.duration && <p className="text-xs text-destructive">{errors.duration}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label>Rating *</Label>
-                  <Select value={formData.rating} onValueChange={(v) => setFormData({ ...formData, rating: v })}>
-                    <SelectTrigger className={errors.rating ? 'border-destructive' : ''}>
-                      <SelectValue placeholder="Select rating" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-card border-border">
-                      {RATINGS.map(rating => (
-                        <SelectItem key={rating} value={rating}>{rating}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors.rating && <p className="text-xs text-destructive">{errors.rating}</p>}
-                </div>
-              </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="duration">Duration (minutes) *</Label>
+              <Input
+                id="duration"
+                type="number"
+                value={formData.duration}
+                onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+                placeholder="e.g., 120"
+                className={errors.duration ? 'border-destructive' : ''}
+              />
+              {errors.duration && <p className="text-xs text-destructive">{errors.duration}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label>Rating *</Label>
+              <Select value={formData.rating} onValueChange={(v) => setFormData({ ...formData, rating: v })}>
+                <SelectTrigger className={errors.rating ? 'border-destructive' : ''}>
+                  <SelectValue placeholder="Select rating" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {RATINGS.map(rating => (
+                    <SelectItem key={rating} value={rating}>{rating}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.rating && <p className="text-xs text-destructive">{errors.rating}</p>}
+            </div>
+          </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="director">Director *</Label>
-                  <Input
-                    id="director"
-                    value={formData.director}
-                    onChange={(e) => setFormData({ ...formData, director: e.target.value })}
-                    placeholder="Enter director name"
-                    className={errors.director ? 'border-destructive' : ''}
-                  />
-                  {errors.director && <p className="text-xs text-destructive">{errors.director}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="releaseDate">Release Date *</Label>
-                  <div className="relative">
-                    <Input
-                      id="releaseDate"
-                      type="date"
-                      value={formData.releaseDate}
-                      onChange={(e) => setFormData({ ...formData, releaseDate: e.target.value })}
-                      className={errors.releaseDate ? 'border-destructive' : ''}
-                    />
-                  </div>
-                  {errors.releaseDate && <p className="text-xs text-destructive">{errors.releaseDate}</p>}
-                </div>
-              </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="director">Director *</Label>
+              <Input
+                id="director"
+                value={formData.director}
+                onChange={(e) => setFormData({ ...formData, director: e.target.value })}
+                placeholder="Enter director name"
+                className={errors.director ? 'border-destructive' : ''}
+              />
+              {errors.director && <p className="text-xs text-destructive">{errors.director}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="releaseDate">Release Date *</Label>
+              <Input
+                id="releaseDate"
+                type="date"
+                value={formData.releaseDate}
+                onChange={(e) => setFormData({ ...formData, releaseDate: e.target.value })}
+                className={errors.releaseDate ? 'border-destructive' : ''}
+              />
+              {errors.releaseDate && <p className="text-xs text-destructive">{errors.releaseDate}</p>}
             </div>
           </div>
 
@@ -283,8 +238,8 @@ export const AddMovieDialog = ({ open, onOpenChange }: AddMovieDialogProps) => {
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button variant="cinema" onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? (
+          <Button variant="cinema" onClick={handleSubmit} disabled={createMovie.isPending}>
+            {createMovie.isPending ? (
               <>
                 <span className="animate-spin mr-2">⟳</span>
                 Saving...

@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { toast } from '@/hooks/use-toast';
 import { Plus, Monitor, Users, Grid3X3, Star } from 'lucide-react';
 import {
   Dialog,
@@ -11,6 +10,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { useCreateScreen } from '@/hooks/useScreens';
 
 interface AddScreenDialogProps {
   open: boolean;
@@ -24,9 +24,9 @@ export const AddScreenDialog = ({ open, onOpenChange }: AddScreenDialogProps) =>
     seatsPerRow: 12,
   });
   const [vipRows, setVipRows] = useState<number[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const createScreen = useCreateScreen();
   const capacity = formData.rows * formData.seatsPerRow;
 
   const validateForm = () => {
@@ -41,17 +41,18 @@ export const AddScreenDialog = ({ open, onOpenChange }: AddScreenDialogProps) =>
   const handleSubmit = async () => {
     if (!validateForm()) return;
     
-    setIsSubmitting(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    toast({
-      title: "Screening Room Created",
-      description: `"${formData.name}" with ${capacity} seats has been added.`,
+    createScreen.mutate({
+      name: formData.name,
+      capacity,
+      rows: formData.rows,
+      seats_per_row: formData.seatsPerRow,
+      vip_rows: vipRows,
+    }, {
+      onSuccess: () => {
+        resetForm();
+        onOpenChange(false);
+      }
     });
-    
-    resetForm();
-    onOpenChange(false);
-    setIsSubmitting(false);
   };
 
   const resetForm = () => {
@@ -212,8 +213,8 @@ export const AddScreenDialog = ({ open, onOpenChange }: AddScreenDialogProps) =>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button variant="cinema" onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? (
+          <Button variant="cinema" onClick={handleSubmit} disabled={createScreen.isPending}>
+            {createScreen.isPending ? (
               <>
                 <span className="animate-spin mr-2">⟳</span>
                 Creating...

@@ -62,6 +62,57 @@ export type Database = {
         }
         Relationships: []
       }
+      movies: {
+        Row: {
+          cast_members: string[] | null
+          created_at: string
+          director: string | null
+          duration: number
+          genre: string[] | null
+          id: string
+          poster_url: string | null
+          rating: string | null
+          release_date: string | null
+          status: string
+          synopsis: string | null
+          title: string
+          trailer_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          cast_members?: string[] | null
+          created_at?: string
+          director?: string | null
+          duration: number
+          genre?: string[] | null
+          id?: string
+          poster_url?: string | null
+          rating?: string | null
+          release_date?: string | null
+          status?: string
+          synopsis?: string | null
+          title: string
+          trailer_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cast_members?: string[] | null
+          created_at?: string
+          director?: string | null
+          duration?: number
+          genre?: string[] | null
+          id?: string
+          poster_url?: string | null
+          rating?: string | null
+          release_date?: string | null
+          status?: string
+          synopsis?: string | null
+          title?: string
+          trailer_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       payments: {
         Row: {
           amount: number
@@ -135,6 +186,87 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      screens: {
+        Row: {
+          capacity: number
+          created_at: string
+          id: string
+          name: string
+          rows: number
+          seats_per_row: number
+          updated_at: string
+          vip_rows: number[] | null
+        }
+        Insert: {
+          capacity: number
+          created_at?: string
+          id?: string
+          name: string
+          rows: number
+          seats_per_row: number
+          updated_at?: string
+          vip_rows?: number[] | null
+        }
+        Update: {
+          capacity?: number
+          created_at?: string
+          id?: string
+          name?: string
+          rows?: number
+          seats_per_row?: number
+          updated_at?: string
+          vip_rows?: number[] | null
+        }
+        Relationships: []
+      }
+      showtimes: {
+        Row: {
+          created_at: string
+          id: string
+          movie_id: string
+          price: number
+          screen_id: string
+          show_date: string
+          show_time: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          movie_id: string
+          price?: number
+          screen_id: string
+          show_date: string
+          show_time: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          movie_id?: string
+          price?: number
+          screen_id?: string
+          show_date?: string
+          show_time?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "showtimes_movie_id_fkey"
+            columns: ["movie_id"]
+            isOneToOne: false
+            referencedRelation: "movies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "showtimes_screen_id_fkey"
+            columns: ["screen_id"]
+            isOneToOne: false
+            referencedRelation: "screens"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {

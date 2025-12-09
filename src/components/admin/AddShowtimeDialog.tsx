@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { toast } from '@/hooks/use-toast';
-import { Plus, AlertTriangle, CheckCircle, Clock, Calendar, Film, Monitor } from 'lucide-react';
+import { Plus, AlertTriangle, CheckCircle, Clock, Calendar, Film, Monitor, Loader2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -18,7 +17,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { movies, screens, showtimes } from '@/data/mockData';
+import { useMovies } from '@/hooks/useMovies';
+import { useScreens } from '@/hooks/useScreens';
+import { useShowtimes, useCreateShowtime } from '@/hooks/useShowtimes';
 
 interface AddShowtimeDialogProps {
   open: boolean;
@@ -33,9 +34,13 @@ export const AddShowtimeDialog = ({ open, onOpenChange }: AddShowtimeDialogProps
     time: '',
     price: '',
   });
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [conflictWarning, setConflictWarning] = useState<string | null>(null);
+
+  const { data: movies = [] } = useMovies();
+  const { data: screens = [] } = useScreens();
+  const { data: allShowtimes = [] } = useShowtimes();
+  const createShowtime = useCreateShowtime();
 
   // Check for scheduling conflicts
   useEffect(() => {
@@ -43,32 +48,29 @@ export const AddShowtimeDialog = ({ open, onOpenChange }: AddShowtimeDialogProps
       const selectedMovie = movies.find(m => m.id === formData.movieId);
       const movieDuration = selectedMovie?.duration || 120;
       
-      // Check for conflicts with existing showtimes
-      const conflict = showtimes.find(st => {
-        if (st.screenId !== formData.screenId || st.date !== formData.date) return false;
+      const conflict = allShowtimes.find(st => {
+        if (st.screen_id !== formData.screenId || st.show_date !== formData.date) return false;
         
-        const existingTime = st.time;
+        const existingTime = st.show_time;
         const newTime = formData.time;
         
-        // Simple time comparison (in real app, this would be more sophisticated)
         const existingMinutes = parseInt(existingTime.split(':')[0]) * 60 + parseInt(existingTime.split(':')[1] || '0');
         const newMinutes = parseInt(newTime.split(':')[0]) * 60 + parseInt(newTime.split(':')[1] || '0');
         
-        // Check if times overlap (assuming 2.5 hour buffer)
-        const buffer = 150; // minutes
+        const buffer = 150;
         return Math.abs(existingMinutes - newMinutes) < buffer;
       });
 
       if (conflict) {
-        const conflictMovie = movies.find(m => m.id === conflict.movieId);
-        setConflictWarning(`Potential conflict with "${conflictMovie?.title}" at ${conflict.time}`);
+        const conflictMovie = movies.find(m => m.id === conflict.movie_id);
+        setConflictWarning(`Potential conflict with "${conflictMovie?.title || 'Unknown'}" at ${conflict.show_time.slice(0, 5)}`);
       } else {
         setConflictWarning(null);
       }
     } else {
       setConflictWarning(null);
     }
-  }, [formData.screenId, formData.date, formData.time, formData.movieId]);
+  }, [formData.screenId, formData.date, formData.time, formData.movieId, movies, allShowtimes]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -84,20 +86,18 @@ export const AddShowtimeDialog = ({ open, onOpenChange }: AddShowtimeDialogProps
   const handleSubmit = async () => {
     if (!validateForm()) return;
     
-    setIsSubmitting(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const selectedMovie = movies.find(m => m.id === formData.movieId);
-    const selectedScreen = screens.find(s => s.id === formData.screenId);
-    
-    toast({
-      title: "Showtime Scheduled",
-      description: `"${selectedMovie?.title}" scheduled for ${formData.date} at ${formData.time} in ${selectedScreen?.name}.`,
+    createShowtime.mutate({
+      movie_id: formData.movieId,
+      screen_id: formData.screenId,
+      show_date: formData.date,
+      show_time: formData.time,
+      price: parseFloat(formData.price),
+    }, {
+      onSuccess: () => {
+        resetForm();
+        onOpenChange(false);
+      }
     });
-    
-    resetForm();
-    onOpenChange(false);
-    setIsSubmitting(false);
   };
 
   const resetForm = () => {
@@ -136,16 +136,20 @@ export const AddShowtimeDialog = ({ open, onOpenChange }: AddShowtimeDialogProps
                 <SelectValue placeholder="Choose a movie" />
               </SelectTrigger>
               <SelectContent className="bg-card border-border">
-                {movies.map(movie => (
-                  <SelectItem key={movie.id} value={movie.id}>
-                    <div className="flex items-center gap-2">
-                      <span>{movie.title}</span>
-                      <span className="text-xs text-muted-foreground">
-                        ({Math.floor(movie.duration / 60)}h {movie.duration % 60}m)
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
+                {movies.length === 0 ? (
+                  <div className="p-2 text-sm text-muted-foreground">No movies available. Add movies first.</div>
+                ) : (
+                  movies.map(movie => (
+                    <SelectItem key={movie.id} value={movie.id}>
+                      <div className="flex items-center gap-2">
+                        <span>{movie.title}</span>
+                        <span className="text-xs text-muted-foreground">
+                          ({Math.floor(movie.duration / 60)}h {movie.duration % 60}m)
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
             {errors.movieId && <p className="text-xs text-destructive">{errors.movieId}</p>}
@@ -167,16 +171,20 @@ export const AddShowtimeDialog = ({ open, onOpenChange }: AddShowtimeDialogProps
                 <SelectValue placeholder="Choose a screen" />
               </SelectTrigger>
               <SelectContent className="bg-card border-border">
-                {screens.map(screen => (
-                  <SelectItem key={screen.id} value={screen.id}>
-                    <div className="flex items-center gap-2">
-                      <span>{screen.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        ({screen.capacity} seats)
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
+                {screens.length === 0 ? (
+                  <div className="p-2 text-sm text-muted-foreground">No screens available. Add screens first.</div>
+                ) : (
+                  screens.map(screen => (
+                    <SelectItem key={screen.id} value={screen.id}>
+                      <div className="flex items-center gap-2">
+                        <span>{screen.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          ({screen.capacity} seats)
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
             {errors.screenId && <p className="text-xs text-destructive">{errors.screenId}</p>}
@@ -253,10 +261,10 @@ export const AddShowtimeDialog = ({ open, onOpenChange }: AddShowtimeDialogProps
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button variant="cinema" onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? (
+          <Button variant="cinema" onClick={handleSubmit} disabled={createShowtime.isPending}>
+            {createShowtime.isPending ? (
               <>
-                <span className="animate-spin mr-2">⟳</span>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Scheduling...
               </>
             ) : (

@@ -9,11 +9,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { toast } from '@/hooks/use-toast';
-import { Movie } from '@/types/movie';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { X, Upload, Save, Loader2 } from 'lucide-react';
+import { X, Save, Loader2 } from 'lucide-react';
+import { useUpdateMovie, Movie } from '@/hooks/useMovies';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface EditMovieDialogProps {
   movie: Movie | null;
@@ -24,7 +30,6 @@ interface EditMovieDialogProps {
 const allGenres = ['Action', 'Adventure', 'Comedy', 'Drama', 'Horror', 'Sci-Fi', 'Thriller', 'Romance', 'Animation', 'Fantasy'];
 
 export function EditMovieDialog({ movie, open, onOpenChange }: EditMovieDialogProps) {
-  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     duration: '',
@@ -34,24 +39,27 @@ export function EditMovieDialog({ movie, open, onOpenChange }: EditMovieDialogPr
     rating: '',
     director: '',
     cast: '',
+    status: 'now_showing',
   });
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Pre-populate form when movie data is available
+  const updateMovie = useUpdateMovie();
+
   useEffect(() => {
     if (movie) {
       setFormData({
         title: movie.title,
         duration: movie.duration.toString(),
         synopsis: movie.synopsis || '',
-        releaseDate: movie.releaseDate,
-        posterUrl: movie.posterUrl,
-        rating: movie.rating,
+        releaseDate: movie.release_date || '',
+        posterUrl: movie.poster_url || '',
+        rating: movie.rating || '',
         director: movie.director || '',
-        cast: movie.cast?.join(', ') || '',
+        cast: movie.cast_members?.join(', ') || '',
+        status: movie.status,
       });
-      setSelectedGenres(movie.genre);
+      setSelectedGenres(movie.genre || []);
       setErrors({});
     }
   }, [movie]);
@@ -78,20 +86,23 @@ export function EditMovieDialog({ movie, open, onOpenChange }: EditMovieDialogPr
   };
 
   const handleSubmit = async () => {
-    if (!validateForm()) return;
+    if (!validateForm() || !movie) return;
     
-    setIsLoading(true);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    toast({
-      title: "Movie Updated",
-      description: `"${formData.title}" has been successfully updated.`,
+    updateMovie.mutate({
+      id: movie.id,
+      title: formData.title,
+      duration: parseInt(formData.duration),
+      synopsis: formData.synopsis,
+      release_date: formData.releaseDate,
+      poster_url: formData.posterUrl || undefined,
+      rating: formData.rating,
+      director: formData.director,
+      cast_members: formData.cast ? formData.cast.split(',').map(c => c.trim()) : undefined,
+      genre: selectedGenres,
+      status: formData.status,
+    }, {
+      onSuccess: () => onOpenChange(false)
     });
-    
-    setIsLoading(false);
-    onOpenChange(false);
   };
 
   if (!movie) return null;
@@ -167,14 +178,28 @@ export function EditMovieDialog({ movie, open, onOpenChange }: EditMovieDialogPr
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="rating">Rating</Label>
-              <Input
-                id="rating"
-                value={formData.rating}
-                onChange={(e) => setFormData({ ...formData, rating: e.target.value })}
-                placeholder="e.g., PG-13"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="rating">Rating</Label>
+                <Input
+                  id="rating"
+                  value={formData.rating}
+                  onChange={(e) => setFormData({ ...formData, rating: e.target.value })}
+                  placeholder="e.g., PG-13"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    <SelectItem value="now_showing">Now Showing</SelectItem>
+                    <SelectItem value="coming_soon">Coming Soon</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </TabsContent>
 
@@ -236,25 +261,15 @@ export function EditMovieDialog({ movie, open, onOpenChange }: EditMovieDialogPr
                 </div>
               </div>
             </div>
-
-            <div className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-primary/50 transition-colors cursor-pointer">
-              <Upload className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">
-                Drag and drop a new poster image here, or click to browse
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Recommended: 300x450px, JPG or PNG
-              </p>
-            </div>
           </TabsContent>
         </Tabs>
 
         <div className="flex justify-end gap-3 pt-4 border-t border-border">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={updateMovie.isPending}>
             Cancel
           </Button>
-          <Button variant="cinema" onClick={handleSubmit} disabled={isLoading}>
-            {isLoading ? (
+          <Button variant="cinema" onClick={handleSubmit} disabled={updateMovie.isPending}>
+            {updateMovie.isPending ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Updating...

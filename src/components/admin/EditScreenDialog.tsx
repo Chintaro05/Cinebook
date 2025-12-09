@@ -8,17 +8,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Save, Loader2, Crown, Armchair } from 'lucide-react';
-
-interface Screen {
-  id: string;
-  name: string;
-  capacity: number;
-  rows: number;
-  seatsPerRow: number;
-}
+import { useUpdateScreen, Screen } from '@/hooks/useScreens';
 
 interface EditScreenDialogProps {
   screen: Screen | null;
@@ -27,7 +19,6 @@ interface EditScreenDialogProps {
 }
 
 export function EditScreenDialog({ screen, open, onOpenChange }: EditScreenDialogProps) {
-  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     rows: 8,
@@ -36,16 +27,16 @@ export function EditScreenDialog({ screen, open, onOpenChange }: EditScreenDialo
   const [vipRows, setVipRows] = useState<number[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Pre-populate form when screen data is available
+  const updateScreen = useUpdateScreen();
+
   useEffect(() => {
     if (screen) {
       setFormData({
         name: screen.name,
         rows: screen.rows,
-        seatsPerRow: screen.seatsPerRow,
+        seatsPerRow: screen.seats_per_row,
       });
-      // Assume last 2 rows are VIP by default
-      setVipRows([screen.rows - 1, screen.rows]);
+      setVipRows(screen.vip_rows || []);
       setErrors({});
     }
   }, [screen]);
@@ -68,20 +59,18 @@ export function EditScreenDialog({ screen, open, onOpenChange }: EditScreenDialo
   };
 
   const handleSubmit = async () => {
-    if (!validateForm()) return;
+    if (!validateForm() || !screen) return;
     
-    setIsLoading(true);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    toast({
-      title: "Room Configuration Saved",
-      description: `"${formData.name}" has been updated.`,
+    updateScreen.mutate({
+      id: screen.id,
+      name: formData.name,
+      capacity: formData.rows * formData.seatsPerRow,
+      rows: formData.rows,
+      seats_per_row: formData.seatsPerRow,
+      vip_rows: vipRows,
+    }, {
+      onSuccess: () => onOpenChange(false)
     });
-    
-    setIsLoading(false);
-    onOpenChange(false);
   };
 
   if (!screen) return null;
@@ -247,11 +236,11 @@ export function EditScreenDialog({ screen, open, onOpenChange }: EditScreenDialo
         </div>
 
         <div className="flex justify-end gap-3 pt-4 border-t border-border">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={updateScreen.isPending}>
             Cancel
           </Button>
-          <Button variant="cinema" onClick={handleSubmit} disabled={isLoading}>
-            {isLoading ? (
+          <Button variant="cinema" onClick={handleSubmit} disabled={updateScreen.isPending}>
+            {updateScreen.isPending ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Saving...

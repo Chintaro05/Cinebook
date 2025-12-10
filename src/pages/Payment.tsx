@@ -1,32 +1,34 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CreditCard, Wallet, Lock } from 'lucide-react';
+import { ArrowLeft, CreditCard, Wallet, Lock, Loader2 } from 'lucide-react';
 import { CustomerLayout } from '@/components/layout/CustomerLayout';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { movies, cinemas } from '@/data/mockData';
+import { useMovies } from '@/hooks/useMovies';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { paymentFormSchema } from '@/lib/validation';
 import { supabase } from '@/integrations/supabase/client';
+import { useNotifications } from '@/contexts/NotificationContext';
 
 const Payment = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user, isLoading } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
+  const { data: movies, isLoading: moviesLoading } = useMovies();
+  const { addNotification } = useNotifications();
   
   const movieId = searchParams.get('movie') || '';
-  const cinemaId = searchParams.get('cinema') || '';
   const date = searchParams.get('date') || '';
   const time = searchParams.get('time') || '';
   const seatsParam = searchParams.get('seats') || '';
   const seats = seatsParam.split(',').filter(Boolean);
   const screenName = searchParams.get('screen') || 'Screen 1';
+  const pricePerSeat = parseFloat(searchParams.get('price') || '15');
 
-  const movie = movies.find(m => m.id === movieId);
-  const cinema = cinemas.find(c => c.id === cinemaId);
+  const movie = movies?.find(m => m.id === movieId);
 
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'wallet'>('card');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -36,14 +38,22 @@ const Payment = () => {
   const [cardName, setCardName] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const pricePerSeat = 15.00;
   const subtotal = seats.length * pricePerSeat;
   const serviceFee = 2.50;
   const total = subtotal + serviceFee;
 
+  const formatTime = (timeStr: string) => {
+    if (!timeStr) return '';
+    const [hours, minutes] = timeStr.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}:${minutes} ${ampm}`;
+  };
+
   // Redirect unauthenticated users to login
   useEffect(() => {
-    if (!isLoading && !user) {
+    if (!authLoading && !user) {
       toast({
         title: "Authentication Required",
         description: "Please log in to complete your booking.",
@@ -51,13 +61,13 @@ const Payment = () => {
       });
       navigate('/login', { state: { returnTo: `/payment${window.location.search}` } });
     }
-  }, [user, isLoading, navigate]);
+  }, [user, authLoading, navigate]);
 
-  if (isLoading) {
+  if (authLoading || moviesLoading) {
     return (
       <CustomerLayout>
         <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       </CustomerLayout>
     );
@@ -122,7 +132,7 @@ const Payment = () => {
           user_id: user.id,
           movie_id: movieId,
           movie_title: movie.title,
-          cinema_name: cinema?.name || 'Unknown Cinema',
+          cinema_name: screenName,
           screen_name: screenName,
           showtime_date: date,
           showtime_time: time,
@@ -157,6 +167,13 @@ const Payment = () => {
         throw paymentError;
       }
 
+      // Add notification
+      addNotification({
+        type: 'booking_confirmed',
+        title: 'Booking Confirmed',
+        message: `Your booking for "${movie.title}" on ${date} at ${formatTime(time)} has been confirmed. Seats: ${seats.join(', ')}`,
+      });
+
       toast({
         title: "Payment Successful!",
         description: "Your tickets have been booked. Check your email for confirmation.",
@@ -165,7 +182,7 @@ const Payment = () => {
       navigate('/booking-confirmed', { 
         state: { 
           movie, 
-          cinema, 
+          screenName, 
           date, 
           time, 
           seats, 
@@ -366,15 +383,15 @@ const Payment = () => {
                 
                 <div className="flex gap-4 mb-6">
                   <img
-                    src={movie.posterUrl}
+                    src={movie.poster_url || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=400&h=600&fit=crop'}
                     alt={movie.title}
                     className="w-20 h-28 rounded-lg object-cover"
                   />
                   <div>
                     <h4 className="font-semibold text-foreground">{movie.title}</h4>
                     <p className="text-sm text-muted-foreground">{movie.rating}</p>
-                    <p className="text-sm text-muted-foreground mt-2">{cinema?.name}</p>
-                    <p className="text-sm text-muted-foreground">{date} • {time}</p>
+                    <p className="text-sm text-muted-foreground mt-2">{screenName}</p>
+                    <p className="text-sm text-muted-foreground">{date} • {formatTime(time)}</p>
                   </div>
                 </div>
 

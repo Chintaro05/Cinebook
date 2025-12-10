@@ -1,28 +1,121 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Info } from 'lucide-react';
+import { ArrowLeft, Info, Loader2 } from 'lucide-react';
 import { CustomerLayout } from '@/components/layout/CustomerLayout';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { movies, cinemas, generateSeats } from '@/data/mockData';
+import { useMovies } from '@/hooks/useMovies';
+import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
+
+interface ScreenData {
+  id: string;
+  name: string;
+  rows: number;
+  seats_per_row: number;
+  vip_rows: number[];
+}
 
 const SeatSelection = () => {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   
-  const movie = movies.find(m => m.id === id);
-  const cinemaId = searchParams.get('cinema') || '1';
+  const { data: movies, isLoading: moviesLoading } = useMovies();
+  const movie = movies?.find(m => m.id === id);
+  
+  const showtimeId = searchParams.get('showtime') || '';
   const date = searchParams.get('date') || '';
   const time = searchParams.get('time') || '';
-  const cinema = cinemas.find(c => c.id === cinemaId);
+  const screenName = searchParams.get('screen') || '';
+  const pricePerSeat = parseFloat(searchParams.get('price') || '15');
 
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
-  
-  const seats = useMemo(() => generateSeats(8, 12), []);
-  const pricePerSeat = 15.00;
+  const [bookedSeats, setBookedSeats] = useState<string[]>([]);
+  const [screenData, setScreenData] = useState<ScreenData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch screen data and booked seats
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!showtimeId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // First get the showtime to find the screen
+        const { data: showtime, error: showtimeError } = await supabase
+          .from('showtimes')
+          .select('screen_id')
+          .eq('id', showtimeId)
+          .maybeSingle();
+
+        if (showtimeError) throw showtimeError;
+        
+        if (showtime?.screen_id) {
+          // Get screen details
+          const { data: screen, error: screenError } = await supabase
+            .from('screens')
+            .select('*')
+            .eq('id', showtime.screen_id)
+            .maybeSingle();
+
+          if (screenError) throw screenError;
+          if (screen) {
+            setScreenData(screen);
+          }
+        }
+
+        // Get booked seats for this showtime
+        const { data: bookings, error: bookingsError } = await supabase
+          .from('bookings')
+          .select('seats')
+          .eq('showtime_date', date)
+          .eq('showtime_time', time)
+          .eq('movie_id', id)
+          .in('status', ['confirmed', 'pending']);
+
+        if (bookingsError) throw bookingsError;
+
+        const allBookedSeats = bookings?.flatMap(b => b.seats || []) || [];
+        setBookedSeats(allBookedSeats);
+      } catch (error) {
+        console.error('Error fetching seat data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [showtimeId, date, time, id]);
+
+  const rows = useMemo(() => {
+    const numRows = screenData?.rows || 8;
+    return 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').slice(0, numRows);
+  }, [screenData]);
+
+  const seatsPerRow = screenData?.seats_per_row || 12;
+
+  const formatTime = (timeStr: string) => {
+    if (!timeStr) return '';
+    const [hours, minutes] = timeStr.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}:${minutes} ${ampm}`;
+  };
+
+  if (moviesLoading || loading) {
+    return (
+      <CustomerLayout>
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </CustomerLayout>
+    );
+  }
 
   if (!movie) {
     return (
@@ -34,11 +127,11 @@ const SeatSelection = () => {
     );
   }
 
-  const toggleSeat = (seatId: string, status: string) => {
-    if (status === 'booked' || status === 'reserved') {
+  const toggleSeat = (seatId: string) => {
+    if (bookedSeats.includes(seatId)) {
       toast({
         title: "Seat Unavailable",
-        description: status === 'booked' ? "This seat is already booked." : "This seat is currently reserved.",
+        description: "This seat is already booked.",
         variant: "destructive",
       });
       return;
@@ -69,10 +162,8 @@ const SeatSelection = () => {
       });
       return;
     }
-    navigate(`/payment?movie=${id}&cinema=${cinemaId}&date=${date}&time=${time}&seats=${selectedSeats.join(',')}`);
+    navigate(`/payment?movie=${id}&date=${date}&time=${time}&seats=${selectedSeats.join(',')}&screen=${screenName}&price=${pricePerSeat}`);
   };
-
-  const rows = 'ABCDEFGH'.split('');
 
   return (
     <CustomerLayout>
@@ -86,7 +177,7 @@ const SeatSelection = () => {
             <div>
               <h1 className="text-2xl font-bold text-foreground">{movie.title}</h1>
               <p className="text-muted-foreground">
-                {cinema?.name} • {date} • {time}
+                {screenName} • {date} • {formatTime(time)}
               </p>
             </div>
           </div>
@@ -108,25 +199,26 @@ const SeatSelection = () => {
                       <div key={row} className="flex items-center justify-center gap-2">
                         <span className="w-6 text-sm font-medium text-muted-foreground">{row}</span>
                         <div className="flex gap-2">
-                          {Array.from({ length: 12 }, (_, i) => {
+                          {Array.from({ length: seatsPerRow }, (_, i) => {
                             const seatNum = i + 1;
                             const seatId = `${row}${seatNum}`;
-                            const seatData = seats.find(s => s.row === row && s.number === seatNum);
-                            const status = selectedSeats.includes(seatId) 
-                              ? 'selected' 
-                              : seatData?.status || 'available';
+                            const isBooked = bookedSeats.includes(seatId);
+                            const isSelected = selectedSeats.includes(seatId);
+                            
+                            let status: 'available' | 'selected' | 'booked' = 'available';
+                            if (isBooked) status = 'booked';
+                            else if (isSelected) status = 'selected';
 
                             return (
                               <button
                                 key={seatId}
-                                onClick={() => toggleSeat(seatId, seatData?.status || 'available')}
-                                disabled={status === 'booked'}
+                                onClick={() => toggleSeat(seatId)}
+                                disabled={isBooked}
                                 className={cn(
                                   "seat",
                                   status === 'available' && "seat-available",
                                   status === 'selected' && "seat-selected",
-                                  status === 'booked' && "seat-booked",
-                                  status === 'reserved' && "seat-reserved"
+                                  status === 'booked' && "seat-booked"
                                 )}
                                 title={seatId}
                               >
@@ -155,10 +247,6 @@ const SeatSelection = () => {
                     <div className="w-6 h-6 rounded-t-lg bg-muted/50" />
                     <span className="text-muted-foreground">Booked</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-t-lg bg-warning/60" />
-                    <span className="text-muted-foreground">Reserved</span>
-                  </div>
                 </div>
               </Card>
             </div>
@@ -170,15 +258,15 @@ const SeatSelection = () => {
                 
                 <div className="flex gap-4 mb-6">
                   <img
-                    src={movie.posterUrl}
+                    src={movie.poster_url || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=400&h=600&fit=crop'}
                     alt={movie.title}
                     className="w-20 h-28 rounded-lg object-cover"
                   />
                   <div>
                     <h4 className="font-semibold text-foreground">{movie.title}</h4>
                     <p className="text-sm text-muted-foreground">{movie.rating}</p>
-                    <p className="text-sm text-muted-foreground mt-2">{cinema?.name}</p>
-                    <p className="text-sm text-muted-foreground">{date} • {time}</p>
+                    <p className="text-sm text-muted-foreground mt-2">{screenName}</p>
+                    <p className="text-sm text-muted-foreground">{date} • {formatTime(time)}</p>
                   </div>
                 </div>
 

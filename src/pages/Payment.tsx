@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { paymentFormSchema } from '@/lib/validation';
+import { supabase } from '@/integrations/supabase/client';
 
 const Payment = () => {
   const [searchParams] = useSearchParams();
@@ -22,6 +23,7 @@ const Payment = () => {
   const time = searchParams.get('time') || '';
   const seatsParam = searchParams.get('seats') || '';
   const seats = seatsParam.split(',').filter(Boolean);
+  const screenName = searchParams.get('screen') || 'Screen 1';
 
   const movie = movies.find(m => m.id === movieId);
   const cinema = cinemas.find(c => c.id === cinemaId);
@@ -112,24 +114,74 @@ const Payment = () => {
 
     setIsProcessing(true);
     
-    // Simulate payment processing
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    toast({
-      title: "Payment Successful!",
-      description: "Your tickets have been booked. Check your email for confirmation.",
-    });
+    try {
+      // Create booking in database
+      const { data: bookingData, error: bookingError } = await supabase
+        .from('bookings')
+        .insert({
+          user_id: user.id,
+          movie_id: movieId,
+          movie_title: movie.title,
+          cinema_name: cinema?.name || 'Unknown Cinema',
+          screen_name: screenName,
+          showtime_date: date,
+          showtime_time: time,
+          seats: seats,
+          total_price: total,
+          status: 'confirmed',
+        })
+        .select()
+        .single();
 
-    navigate('/booking-confirmed', { 
-      state: { 
-        movie, 
-        cinema, 
-        date, 
-        time, 
-        seats, 
-        total 
-      } 
-    });
+      if (bookingError) {
+        throw bookingError;
+      }
+
+      // Create payment record
+      const cardLastFour = paymentMethod === 'card' ? cardNumber.replace(/\s/g, '').slice(-4) : null;
+      const transactionId = `TXN${Date.now()}`;
+
+      const { error: paymentError } = await supabase
+        .from('payments')
+        .insert({
+          user_id: user.id,
+          booking_id: bookingData.id,
+          amount: total,
+          payment_method: paymentMethod === 'card' ? 'Credit Card' : 'E-Wallet',
+          card_last_four: cardLastFour,
+          status: 'completed',
+          transaction_id: transactionId,
+        });
+
+      if (paymentError) {
+        throw paymentError;
+      }
+
+      toast({
+        title: "Payment Successful!",
+        description: "Your tickets have been booked. Check your email for confirmation.",
+      });
+
+      navigate('/booking-confirmed', { 
+        state: { 
+          movie, 
+          cinema, 
+          date, 
+          time, 
+          seats, 
+          total 
+        } 
+      });
+    } catch (error) {
+      console.error('Payment error:', error);
+      toast({
+        title: "Payment Failed",
+        description: "There was an error processing your payment. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const formatCardNumber = (value: string) => {

@@ -4,7 +4,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
-import { NotificationProvider } from "@/contexts/NotificationContext";
 import ProtectedAdminRoute from "@/components/ProtectedAdminRoute";
 import Index from "./pages/Index";
 import NowShowing from "./pages/NowShowing";
@@ -36,34 +35,32 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <NotificationProvider>
-            <Routes>
-              {/* Customer Routes */}
-              <Route path="/" element={<Index />} />
-              <Route path="/now-showing" element={<NowShowing />} />
-              <Route path="/movie/:id" element={<MovieDetail />} />
-              <Route path="/seats/:id" element={<SeatSelection />} />
-              <Route path="/payment" element={<Payment />} />
-              <Route path="/booking-confirmed" element={<BookingConfirmed />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="/contact" element={<Contact />} />
-              
-              {/* Admin Routes */}
-              <Route path="/admin" element={<ProtectedAdminRoute><AdminDashboard /></ProtectedAdminRoute>} />
-              <Route path="/admin/movies" element={<ProtectedAdminRoute><ManageMovies /></ProtectedAdminRoute>} />
-              <Route path="/admin/showtimes" element={<ProtectedAdminRoute><ManageShowtimes /></ProtectedAdminRoute>} />
-              <Route path="/admin/screens" element={<ProtectedAdminRoute><ManageScreens /></ProtectedAdminRoute>} />
-              <Route path="/admin/tickets" element={<ProtectedAdminRoute><ManageTickets /></ProtectedAdminRoute>} />
-              <Route path="/admin/reports" element={<ProtectedAdminRoute><RevenueReports /></ProtectedAdminRoute>} />
-              <Route path="/admin/feedback" element={<ProtectedAdminRoute><ManageFeedback /></ProtectedAdminRoute>} />
-              <Route path="/admin/users" element={<ProtectedAdminRoute><ManageUsers /></ProtectedAdminRoute>} />
-              
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </NotificationProvider>
+          <Routes>
+            {/* Customer Routes */}
+            <Route path="/" element={<Index />} />
+            <Route path="/now-showing" element={<NowShowing />} />
+            <Route path="/movie/:id" element={<MovieDetail />} />
+            <Route path="/seats/:id" element={<SeatSelection />} />
+            <Route path="/payment" element={<Payment />} />
+            <Route path="/booking-confirmed" element={<BookingConfirmed />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/contact" element={<Contact />} />
+            
+            {/* Admin Routes */}
+            <Route path="/admin" element={<ProtectedAdminRoute><AdminDashboard /></ProtectedAdminRoute>} />
+            <Route path="/admin/movies" element={<ProtectedAdminRoute><ManageMovies /></ProtectedAdminRoute>} />
+            <Route path="/admin/showtimes" element={<ProtectedAdminRoute><ManageShowtimes /></ProtectedAdminRoute>} />
+            <Route path="/admin/screens" element={<ProtectedAdminRoute><ManageScreens /></ProtectedAdminRoute>} />
+            <Route path="/admin/tickets" element={<ProtectedAdminRoute><ManageTickets /></ProtectedAdminRoute>} />
+            <Route path="/admin/reports" element={<ProtectedAdminRoute><RevenueReports /></ProtectedAdminRoute>} />
+            <Route path="/admin/feedback" element={<ProtectedAdminRoute><ManageFeedback /></ProtectedAdminRoute>} />
+            <Route path="/admin/users" element={<ProtectedAdminRoute><ManageUsers /></ProtectedAdminRoute>} />
+            
+            <Route path="*" element={<NotFound />} />
+          </Routes>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

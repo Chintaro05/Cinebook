@@ -3,70 +3,11 @@ import { Bell, X, Check, Ticket, AlertCircle, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-
-export interface Notification {
-  id: string;
-  type: 'booking_confirmed' | 'booking_cancelled' | 'reminder' | 'promo' | 'error';
-  title: string;
-  message: string;
-  timestamp: string;
-  read: boolean;
-}
-
-const mockNotifications: Notification[] = [
-  {
-    id: '1',
-    type: 'booking_confirmed',
-    title: 'Booking Confirmed',
-    message: 'Your booking for "Inception" on Dec 20 at 7:15 PM has been confirmed.',
-    timestamp: '2 hours ago',
-    read: false,
-  },
-  {
-    id: '2',
-    type: 'reminder',
-    title: 'Upcoming Show',
-    message: 'Reminder: "The Dark Knight" starts in 2 hours at Cinema Plaza.',
-    timestamp: '1 day ago',
-    read: false,
-  },
-  {
-    id: '3',
-    type: 'promo',
-    title: 'Special Offer!',
-    message: 'Get 20% off on all bookings this weekend. Use code: WEEKEND20',
-    timestamp: '2 days ago',
-    read: true,
-  },
-  {
-    id: '4',
-    type: 'booking_cancelled',
-    title: 'Booking Cancelled',
-    message: 'Your booking for "Dune" has been cancelled. Refund will be processed in 3-5 days.',
-    timestamp: '3 days ago',
-    read: true,
-  },
-];
+import { useNotifications, Notification } from '@/contexts/NotificationContext';
 
 export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
-
-  const unreadCount = notifications.filter(n => !n.read).length;
-
-  const markAsRead = (id: string) => {
-    setNotifications(notifications.map(n => 
-      n.id === id ? { ...n, read: true } : n
-    ));
-  };
-
-  const markAllAsRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, read: true })));
-  };
-
-  const clearNotification = (id: string) => {
-    setNotifications(notifications.filter(n => n.id !== id));
-  };
+  const { notifications, markAsRead, markAllAsRead, clearNotification, unreadCount } = useNotifications();
 
   const getIcon = (type: Notification['type']) => {
     switch (type) {

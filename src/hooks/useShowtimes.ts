@@ -57,6 +57,81 @@ export function useShowtimes(date?: string) {
   });
 }
 
+export function useShowtimeById(id: string | undefined) {
+  return useQuery({
+    queryKey: ['showtime', id],
+    queryFn: async () => {
+      if (!id) return null;
+      
+      const { data, error } = await supabase
+        .from('showtimes')
+        .select(`
+          *,
+          movie:movies(id, title, poster_url, duration, rating),
+          screen:screens(id, name, rows, seats_per_row, vip_rows, capacity)
+        `)
+        .eq('id', id)
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+}
+
+export function useShowtimesByMovie(movieId: string | undefined, date?: string) {
+  return useQuery({
+    queryKey: ['showtimes-by-movie', movieId, date],
+    queryFn: async () => {
+      if (!movieId) return [];
+      
+      let query = supabase
+        .from('showtimes')
+        .select(`
+          *,
+          screen:screens(id, name)
+        `)
+        .eq('movie_id', movieId)
+        .order('show_date', { ascending: true })
+        .order('show_time', { ascending: true });
+      
+      if (date) {
+        query = query.eq('show_date', date);
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!movieId,
+  });
+}
+
+export function useBookedSeats(showtimeId: string | undefined, showtimeDate: string, showtimeTime: string) {
+  return useQuery({
+    queryKey: ['booked-seats', showtimeId, showtimeDate, showtimeTime],
+    queryFn: async () => {
+      if (!showtimeId) return [];
+      
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('seats')
+        .eq('showtime_date', showtimeDate)
+        .eq('showtime_time', showtimeTime)
+        .in('status', ['pending', 'confirmed']);
+      
+      if (error) throw error;
+      
+      // Flatten all booked seats into a single array
+      const bookedSeats = data?.flatMap(booking => booking.seats) || [];
+      return bookedSeats;
+    },
+    enabled: !!showtimeId && !!showtimeDate && !!showtimeTime,
+  });
+}
+
 export function useCreateShowtime() {
   const queryClient = useQueryClient();
   

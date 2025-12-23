@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card';
 
 const BookingConfirmed = () => {
   const location = useLocation();
-  const { movie, cinema, date, time, seats, total } = location.state || {};
+  const { movie, cinema, date, time, seats, total, screenName } = location.state || {};
 
   if (!movie) {
     return (
@@ -56,19 +56,21 @@ const BookingConfirmed = () => {
             {/* Content */}
             <div className="p-6">
               <div className="flex gap-6 mb-6">
-                <img
-                  src={movie.posterUrl}
-                  alt={movie.title}
-                  className="w-24 h-36 rounded-lg object-cover"
-                />
+                {movie.posterUrl && (
+                  <img
+                    src={movie.posterUrl}
+                    alt={movie.title}
+                    className="w-24 h-36 rounded-lg object-cover"
+                  />
+                )}
                 <div>
                   <h2 className="text-xl font-bold text-foreground mb-1">{movie.title}</h2>
-                  <p className="text-muted-foreground text-sm mb-4">{movie.rating} • {movie.genre.slice(0, 2).join(', ')}</p>
+                  <p className="text-muted-foreground text-sm mb-4">{movie.rating}</p>
                   
                   <div className="space-y-2 text-sm">
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <MapPin className="w-4 h-4" />
-                      <span>{cinema?.name}</span>
+                      <span>{cinema?.name}{screenName ? ` • ${screenName}` : ''}</span>
                     </div>
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Calendar className="w-4 h-4" />

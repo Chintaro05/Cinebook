@@ -1,20 +1,49 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Play, Clock, Calendar, Star, MapPin, ChevronRight } from 'lucide-react';
+import { Play, Clock, Calendar, Star, Loader2 } from 'lucide-react';
 import { CustomerLayout } from '@/components/layout/CustomerLayout';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { movies, cinemas, showtimes } from '@/data/mockData';
 import { cn } from '@/lib/utils';
+import { useMovie } from '@/hooks/useMovies';
+import { useShowtimesByMovie } from '@/hooks/useShowtimes';
+import { format, addDays, startOfToday } from 'date-fns';
 
 const MovieDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const movie = movies.find(m => m.id === id);
+  
+  const { data: movie, isLoading: isLoadingMovie } = useMovie(id);
+  
+  // Generate dates for the next 7 days
+  const dates = useMemo(() => {
+    const today = startOfToday();
+    return Array.from({ length: 7 }, (_, i) => {
+      const date = addDays(today, i);
+      return {
+        date: format(date, 'yyyy-MM-dd'),
+        label: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : format(date, 'MMM d'),
+        day: format(date, 'EEE'),
+      };
+    });
+  }, []);
 
-  const [selectedDate, setSelectedDate] = useState<string>('2024-12-20');
-  const [selectedCinema, setSelectedCinema] = useState<string>('1');
-  const [selectedTime, setSelectedTime] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState<string>(dates[0].date);
+  const [selectedShowtimeId, setSelectedShowtimeId] = useState<string>('');
+
+  const { data: showtimes = [], isLoading: isLoadingShowtimes } = useShowtimesByMovie(id, selectedDate);
+
+  const isLoading = isLoadingMovie || isLoadingShowtimes;
+
+  if (isLoadingMovie) {
+    return (
+      <CustomerLayout>
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </CustomerLayout>
+    );
+  }
 
   if (!movie) {
     return (
@@ -26,19 +55,9 @@ const MovieDetail = () => {
     );
   }
 
-  const dates = [
-    { date: '2024-12-20', label: 'Today', day: 'Fri' },
-    { date: '2024-12-21', label: 'Tomorrow', day: 'Sat' },
-    { date: '2024-12-22', label: '12/22', day: 'Sun' },
-    { date: '2024-12-23', label: '12/23', day: 'Mon' },
-    { date: '2024-12-24', label: '12/24', day: 'Tue' },
-  ];
-
-  const times = ['10:00 AM', '1:30 PM', '4:45 PM', '7:15 PM', '10:00 PM'];
-
   const handleContinue = () => {
-    if (selectedTime) {
-      navigate(`/seats/${movie.id}?cinema=${selectedCinema}&date=${selectedDate}&time=${selectedTime}`);
+    if (selectedShowtimeId) {
+      navigate(`/seats/${selectedShowtimeId}`);
     }
   };
 
@@ -48,13 +67,15 @@ const MovieDetail = () => {
     return `${hours}h ${mins}m`;
   };
 
+  const selectedShowtime = showtimes.find(s => s.id === selectedShowtimeId);
+
   return (
     <CustomerLayout>
       {/* Hero Section */}
       <section className="relative h-[60vh] min-h-[500px]">
         <div className="absolute inset-0">
           <img
-            src={movie.posterUrl}
+            src={movie.poster_url || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=400&h=600&fit=crop'}
             alt={movie.title}
             className="w-full h-full object-cover"
           />
@@ -67,7 +88,7 @@ const MovieDetail = () => {
             {/* Poster */}
             <div className="hidden md:block w-64 rounded-xl overflow-hidden shadow-2xl shadow-primary/20 border border-border">
               <img
-                src={movie.posterUrl}
+                src={movie.poster_url || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=400&h=600&fit=crop'}
                 alt={movie.title}
                 className="w-full aspect-[2/3] object-cover"
               />
@@ -75,11 +96,13 @@ const MovieDetail = () => {
 
             {/* Info */}
             <div className="space-y-4 animate-fade-up">
-              <div className="flex items-center gap-3">
-                <span className="px-3 py-1 rounded-full bg-primary/20 text-primary text-sm font-medium border border-primary/30">
-                  {movie.rating}
-                </span>
-                {movie.genre.map((g) => (
+              <div className="flex items-center gap-3 flex-wrap">
+                {movie.rating && (
+                  <span className="px-3 py-1 rounded-full bg-primary/20 text-primary text-sm font-medium border border-primary/30">
+                    {movie.rating}
+                  </span>
+                )}
+                {movie.genre?.map((g) => (
                   <span key={g} className="px-3 py-1 rounded-full bg-secondary text-secondary-foreground text-sm">
                     {g}
                   </span>
@@ -95,10 +118,12 @@ const MovieDetail = () => {
                   <Clock className="w-4 h-4" />
                   {formatDuration(movie.duration)}
                 </span>
-                <span className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
-                  {movie.releaseDate}
-                </span>
+                {movie.release_date && (
+                  <span className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    {format(new Date(movie.release_date), 'MMM d, yyyy')}
+                  </span>
+                )}
                 <span className="flex items-center gap-2">
                   <Star className="w-4 h-4 text-warning fill-warning" />
                   8.8/10
@@ -109,37 +134,40 @@ const MovieDetail = () => {
                 {movie.synopsis}
               </p>
 
-              <div className="text-sm text-muted-foreground">
-                <span className="text-foreground font-medium">Director:</span> {movie.director}
-              </div>
+              {movie.director && (
+                <div className="text-sm text-muted-foreground">
+                  <span className="text-foreground font-medium">Director:</span> {movie.director}
+                </div>
+              )}
 
-              <Button variant="cinema-outline" className="gap-2">
-                <Play className="w-4 h-4" />
-                Watch Trailer
-              </Button>
+              {movie.trailer_url && (
+                <Button 
+                  variant="cinema-outline" 
+                  className="gap-2"
+                  onClick={() => window.open(movie.trailer_url!, '_blank')}
+                >
+                  <Play className="w-4 h-4" />
+                  Watch Trailer
+                </Button>
+              )}
             </div>
           </div>
         </div>
       </section>
 
       {/* Cast Section */}
-      {movie.cast.length > 0 && (
+      {movie.cast_members && movie.cast_members.length > 0 && (
         <section className="py-12 border-b border-border">
           <div className="container mx-auto px-4">
             <h2 className="text-2xl font-bold text-foreground mb-6">Cast</h2>
-            <div className="flex gap-6 overflow-x-auto pb-4">
-              {movie.cast.map((member) => (
-                <div key={member.name} className="flex-shrink-0 text-center">
-                  <div className="w-24 h-24 rounded-full overflow-hidden mb-3 border-2 border-border">
-                    <img
-                      src={member.imageUrl}
-                      alt={member.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <p className="font-medium text-foreground text-sm">{member.name}</p>
-                  <p className="text-xs text-muted-foreground">{member.role}</p>
-                </div>
+            <div className="flex gap-4 flex-wrap">
+              {movie.cast_members.map((member) => (
+                <span 
+                  key={member} 
+                  className="px-4 py-2 rounded-full bg-secondary text-secondary-foreground text-sm"
+                >
+                  {member}
+                </span>
               ))}
             </div>
           </div>
@@ -160,7 +188,10 @@ const MovieDetail = () => {
                   {dates.map((d) => (
                     <button
                       key={d.date}
-                      onClick={() => setSelectedDate(d.date)}
+                      onClick={() => {
+                        setSelectedDate(d.date);
+                        setSelectedShowtimeId('');
+                      }}
                       className={cn(
                         "flex-shrink-0 px-6 py-4 rounded-xl border transition-all duration-200 text-center min-w-[100px]",
                         selectedDate === d.date
@@ -175,60 +206,35 @@ const MovieDetail = () => {
                 </div>
               </div>
 
-              {/* Cinema Selection */}
-              <div>
-                <h3 className="text-lg font-semibold text-foreground mb-4">Choose Cinema</h3>
-                <div className="space-y-3">
-                  {cinemas.map((cinema) => (
-                    <button
-                      key={cinema.id}
-                      onClick={() => setSelectedCinema(cinema.id)}
-                      className={cn(
-                        "w-full flex items-center justify-between p-4 rounded-xl border transition-all duration-200",
-                        selectedCinema === cinema.id
-                          ? "bg-primary/10 border-primary/50 text-foreground"
-                          : "bg-card border-border hover:border-primary/30 text-foreground"
-                      )}
-                    >
-                      <div className="flex items-center gap-3">
-                        <MapPin className={cn(
-                          "w-5 h-5",
-                          selectedCinema === cinema.id ? "text-primary" : "text-muted-foreground"
-                        )} />
-                        <div className="text-left">
-                          <div className="font-medium">{cinema.name}</div>
-                          <div className="text-sm text-muted-foreground">{cinema.address}</div>
-                        </div>
-                      </div>
-                      {selectedCinema === cinema.id && (
-                        <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
-                          <ChevronRight className="w-4 h-4 text-primary-foreground" />
-                        </div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {/* Time Selection */}
               <div>
-                <h3 className="text-lg font-semibold text-foreground mb-4">Choose Time</h3>
-                <div className="flex flex-wrap gap-3">
-                  {times.map((time) => (
-                    <button
-                      key={time}
-                      onClick={() => setSelectedTime(time)}
-                      className={cn(
-                        "px-6 py-3 rounded-xl border transition-all duration-200 font-medium",
-                        selectedTime === time
-                          ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/30"
-                          : "bg-card border-border hover:border-primary/50 text-foreground"
-                      )}
-                    >
-                      {time}
-                    </button>
-                  ))}
-                </div>
+                <h3 className="text-lg font-semibold text-foreground mb-4">Choose Showtime</h3>
+                {isLoadingShowtimes ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                  </div>
+                ) : showtimes.length === 0 ? (
+                  <p className="text-muted-foreground py-4">No showtimes available for this date.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-3">
+                    {showtimes.map((showtime) => (
+                      <button
+                        key={showtime.id}
+                        onClick={() => setSelectedShowtimeId(showtime.id)}
+                        className={cn(
+                          "px-6 py-3 rounded-xl border transition-all duration-200 font-medium",
+                          selectedShowtimeId === showtime.id
+                            ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/30"
+                            : "bg-card border-border hover:border-primary/50 text-foreground"
+                        )}
+                      >
+                        <div>{showtime.show_time.slice(0, 5)}</div>
+                        <div className="text-xs opacity-70">{showtime.screen?.name}</div>
+                        <div className="text-xs opacity-70">${Number(showtime.price).toFixed(2)}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -239,7 +245,7 @@ const MovieDetail = () => {
                 <div className="space-y-4">
                   <div className="flex gap-4">
                     <img
-                      src={movie.posterUrl}
+                      src={movie.poster_url || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=400&h=600&fit=crop'}
                       alt={movie.title}
                       className="w-20 h-28 rounded-lg object-cover"
                     />
@@ -252,17 +258,27 @@ const MovieDetail = () => {
                   <div className="border-t border-border pt-4 space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Date</span>
-                      <span className="text-foreground font-medium">{selectedDate}</span>
+                      <span className="text-foreground font-medium">
+                        {format(new Date(selectedDate), 'EEE, MMM d')}
+                      </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Cinema</span>
+                      <span className="text-muted-foreground">Screen</span>
                       <span className="text-foreground font-medium">
-                        {cinemas.find(c => c.id === selectedCinema)?.name}
+                        {selectedShowtime?.screen?.name || '—'}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Time</span>
-                      <span className="text-foreground font-medium">{selectedTime || '—'}</span>
+                      <span className="text-foreground font-medium">
+                        {selectedShowtime ? selectedShowtime.show_time.slice(0, 5) : '—'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Price</span>
+                      <span className="text-foreground font-medium">
+                        {selectedShowtime ? `$${Number(selectedShowtime.price).toFixed(2)}` : '—'}
+                      </span>
                     </div>
                   </div>
 
@@ -270,7 +286,7 @@ const MovieDetail = () => {
                     variant="cinema"
                     className="w-full"
                     size="lg"
-                    disabled={!selectedTime}
+                    disabled={!selectedShowtimeId}
                     onClick={handleContinue}
                   >
                     Continue to Seat Selection

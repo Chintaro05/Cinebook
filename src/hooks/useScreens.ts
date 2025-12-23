@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import { useRealtimeSubscription } from './useRealtimeSubscription';
 
 export interface Screen {
   id: string;
@@ -22,6 +23,9 @@ export interface ScreenInput {
 }
 
 export function useScreens() {
+  // Subscribe to real-time updates for screens
+  useRealtimeSubscription('screens', [['screens']]);
+  
   return useQuery({
     queryKey: ['screens'],
     queryFn: async () => {

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import { useRealtimeSubscription } from './useRealtimeSubscription';
 
 export interface Movie {
   id: string;
@@ -34,6 +35,9 @@ export interface MovieInput {
 }
 
 export function useMovies() {
+  // Subscribe to real-time updates for movies
+  useRealtimeSubscription('movies', [['movies']]);
+  
   return useQuery({
     queryKey: ['movies'],
     queryFn: async () => {

@@ -294,6 +294,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_secure_booking: {
+        Args: {
+          p_card_last_four?: string
+          p_payment_method: string
+          p_seats: string[]
+          p_showtime_id: string
+        }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

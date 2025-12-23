@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { CustomerLayout } from '@/components/layout/CustomerLayout';
 import { MovieCard } from '@/components/movies/MovieCard';
-import { movies } from '@/data/mockData';
+import { useMovies } from '@/hooks/useMovies';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, SlidersHorizontal, Grid3X3, List, Star, Clock, Calendar } from 'lucide-react';
+import { Search, SlidersHorizontal, Grid3X3, List, Star, Clock, Calendar, Loader2 } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -20,26 +21,28 @@ const NowShowing = () => {
   const [sortBy, setSortBy] = useState<string>('title');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
+  const { data: movies = [], isLoading } = useMovies();
+
   // Extract unique genres
   const allGenres = useMemo(() => {
     const genres = new Set<string>();
-    movies.forEach(m => m.genre.forEach(g => genres.add(g)));
+    movies.forEach(m => m.genre?.forEach(g => genres.add(g)));
     return Array.from(genres).sort();
-  }, []);
+  }, [movies]);
 
   // Extract unique ratings
   const allRatings = useMemo(() => {
     const ratings = new Set<string>();
-    movies.forEach(m => ratings.add(m.rating));
+    movies.forEach(m => m.rating && ratings.add(m.rating));
     return Array.from(ratings).sort();
-  }, []);
+  }, [movies]);
 
   // Filter and sort movies
   const filteredMovies = useMemo(() => {
     let result = movies.filter(movie => {
       const matchesSearch = movie.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        movie.director.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesGenre = selectedGenre === 'all' || movie.genre.includes(selectedGenre);
+        movie.director?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesGenre = selectedGenre === 'all' || movie.genre?.includes(selectedGenre);
       const matchesRating = selectedRating === 'all' || movie.rating === selectedRating;
       return matchesSearch && matchesGenre && matchesRating;
     });
@@ -53,15 +56,18 @@ const NowShowing = () => {
         result.sort((a, b) => a.duration - b.duration);
         break;
       case 'releaseDate':
-        result.sort((a, b) => new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime());
+        result.sort((a, b) => {
+          if (!a.release_date || !b.release_date) return 0;
+          return new Date(b.release_date).getTime() - new Date(a.release_date).getTime();
+        });
         break;
       case 'rating':
-        result.sort((a, b) => a.rating.localeCompare(b.rating));
+        result.sort((a, b) => (a.rating || '').localeCompare(b.rating || ''));
         break;
     }
 
     return result;
-  }, [searchQuery, selectedGenre, selectedRating, sortBy]);
+  }, [movies, searchQuery, selectedGenre, selectedRating, sortBy]);
 
   const clearFilters = () => {
     setSearchQuery('');
@@ -69,6 +75,16 @@ const NowShowing = () => {
     setSelectedRating('all');
     setSortBy('title');
   };
+
+  if (isLoading) {
+    return (
+      <CustomerLayout>
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </CustomerLayout>
+    );
+  }
 
   return (
     <CustomerLayout>
@@ -220,7 +236,7 @@ const NowShowing = () => {
                     className="flex gap-4 p-4 bg-card/50 rounded-xl border border-border hover:border-primary/30 transition-colors"
                   >
                     <img
-                      src={movie.posterUrl}
+                      src={movie.poster_url || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=400&h=600&fit=crop'}
                       alt={movie.title}
                       className="w-24 h-36 rounded-lg object-cover flex-shrink-0"
                     />
@@ -228,21 +244,25 @@ const NowShowing = () => {
                       <h3 className="text-lg font-semibold text-foreground mb-1">{movie.title}</h3>
                       <p className="text-sm text-muted-foreground mb-2">{movie.director}</p>
                       <div className="flex flex-wrap gap-2 mb-3">
-                        {movie.genre.map(g => (
+                        {movie.genre?.map(g => (
                           <span key={g} className="px-2 py-0.5 rounded-full bg-secondary text-xs text-secondary-foreground">
                             {g}
                           </span>
                         ))}
-                        <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium">
-                          {movie.rating}
-                        </span>
+                        {movie.rating && (
+                          <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium">
+                            {movie.rating}
+                          </span>
+                        )}
                       </div>
                       <p className="text-sm text-muted-foreground line-clamp-2">{movie.synopsis}</p>
                       <div className="flex items-center gap-4 mt-3">
                         <span className="text-sm text-muted-foreground">
                           {Math.floor(movie.duration / 60)}h {movie.duration % 60}m
                         </span>
-                        <Button variant="cinema" size="sm">Book Tickets</Button>
+                        <Link to={`/movie/${movie.id}`}>
+                          <Button variant="cinema" size="sm">Book Tickets</Button>
+                        </Link>
                       </div>
                     </div>
                   </div>

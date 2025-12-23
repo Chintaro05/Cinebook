@@ -118,47 +118,35 @@ const Payment = () => {
     setIsProcessing(true);
     
     try {
-      // Create booking in database
-      const { data: bookingData, error: bookingError } = await supabase
-        .from('bookings')
-        .insert({
-          user_id: user.id,
-          movie_id: movie.id,
-          movie_title: movie.title,
-          cinema_name: 'CineBook Cinema',
-          screen_name: screen?.name || 'Screen 1',
-          showtime_date: showtime.show_date,
-          showtime_time: showtime.show_time,
-          seats: seats,
-          total_price: total,
-          status: 'confirmed',
-        })
-        .select()
-        .single();
-
-      if (bookingError) {
-        throw bookingError;
-      }
-
-      // Create payment record
+      // Get card last four digits for card payments
       const cardLastFour = paymentMethod === 'card' ? cardNumber.replace(/\s/g, '').slice(-4) : null;
-      const transactionId = `TXN${Date.now()}`;
+      const paymentMethodName = paymentMethod === 'card' ? 'Credit Card' : 'E-Wallet';
 
-      const { error: paymentError } = await supabase
-        .from('payments')
-        .insert({
-          user_id: user.id,
-          booking_id: bookingData.id,
-          amount: total,
-          payment_method: paymentMethod === 'card' ? 'Credit Card' : 'E-Wallet',
-          card_last_four: cardLastFour,
-          status: 'completed',
-          transaction_id: transactionId,
-        });
+      // Use secure server-side function to create booking with validated price
+      const { data, error } = await supabase.rpc('create_secure_booking', {
+        p_showtime_id: showtimeId,
+        p_seats: seats,
+        p_payment_method: paymentMethodName,
+        p_card_last_four: cardLastFour,
+      });
 
-      if (paymentError) {
-        throw paymentError;
+      if (error) {
+        console.error('Booking error:', error);
+        throw error;
       }
+
+      const bookingResult = data as {
+        booking_id: string;
+        total: number;
+        transaction_id: string;
+        movie_title: string;
+        movie_poster_url: string;
+        movie_rating: string;
+        screen_name: string;
+        show_date: string;
+        show_time: string;
+        seats: string[];
+      };
 
       toast({
         title: "Payment Successful!",
@@ -168,23 +156,23 @@ const Payment = () => {
       navigate('/booking-confirmed', { 
         state: { 
           movie: {
-            title: movie.title,
-            posterUrl: movie.poster_url,
-            rating: movie.rating,
+            title: bookingResult.movie_title,
+            posterUrl: bookingResult.movie_poster_url,
+            rating: bookingResult.movie_rating,
           }, 
           cinema: { name: 'CineBook Cinema' }, 
           date: formattedDate, 
           time: formattedTime, 
-          seats, 
-          total,
-          screenName: screen?.name,
+          seats: bookingResult.seats, 
+          total: bookingResult.total,
+          screenName: bookingResult.screen_name,
         } 
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Payment error:', error);
       toast({
         title: "Payment Failed",
-        description: "There was an error processing your payment. Please try again.",
+        description: error?.message || "There was an error processing your payment. Please try again.",
         variant: "destructive",
       });
     } finally {

@@ -1,32 +1,28 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CreditCard, Wallet, Lock } from 'lucide-react';
+import { ArrowLeft, CreditCard, Wallet, Lock, Loader2 } from 'lucide-react';
 import { CustomerLayout } from '@/components/layout/CustomerLayout';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { movies, cinemas } from '@/data/mockData';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { paymentFormSchema } from '@/lib/validation';
 import { supabase } from '@/integrations/supabase/client';
+import { useShowtimeById } from '@/hooks/useShowtimes';
+import { format } from 'date-fns';
 
 const Payment = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user, isLoading } = useAuth();
+  const { user, isLoading: isAuthLoading } = useAuth();
   
-  const movieId = searchParams.get('movie') || '';
-  const cinemaId = searchParams.get('cinema') || '';
-  const date = searchParams.get('date') || '';
-  const time = searchParams.get('time') || '';
+  const showtimeId = searchParams.get('showtime') || '';
   const seatsParam = searchParams.get('seats') || '';
   const seats = seatsParam.split(',').filter(Boolean);
-  const screenName = searchParams.get('screen') || 'Screen 1';
 
-  const movie = movies.find(m => m.id === movieId);
-  const cinema = cinemas.find(c => c.id === cinemaId);
+  const { data: showtime, isLoading: isLoadingShowtime } = useShowtimeById(showtimeId);
 
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'wallet'>('card');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -36,14 +32,18 @@ const Payment = () => {
   const [cardName, setCardName] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const pricePerSeat = 15.00;
-  const subtotal = seats.length * pricePerSeat;
+  const movie = showtime?.movie;
+  const screen = showtime?.screen;
+  const pricePerSeat = showtime?.price || 15.00;
+  const subtotal = seats.length * Number(pricePerSeat);
   const serviceFee = 2.50;
   const total = subtotal + serviceFee;
 
+  const isLoading = isAuthLoading || isLoadingShowtime;
+
   // Redirect unauthenticated users to login
   useEffect(() => {
-    if (!isLoading && !user) {
+    if (!isAuthLoading && !user) {
       toast({
         title: "Authentication Required",
         description: "Please log in to complete your booking.",
@@ -51,13 +51,13 @@ const Payment = () => {
       });
       navigate('/login', { state: { returnTo: `/payment${window.location.search}` } });
     }
-  }, [user, isLoading, navigate]);
+  }, [user, isAuthLoading, navigate]);
 
   if (isLoading) {
     return (
       <CustomerLayout>
         <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       </CustomerLayout>
     );
@@ -67,7 +67,7 @@ const Payment = () => {
     return null;
   }
 
-  if (!movie) {
+  if (!showtime || !movie) {
     return (
       <CustomerLayout>
         <div className="min-h-screen flex items-center justify-center">
@@ -76,6 +76,9 @@ const Payment = () => {
       </CustomerLayout>
     );
   }
+
+  const formattedDate = format(new Date(showtime.show_date), 'EEE, MMM d, yyyy');
+  const formattedTime = showtime.show_time.slice(0, 5);
 
   const validateCardForm = (): boolean => {
     const result = paymentFormSchema.safeParse({
@@ -120,12 +123,12 @@ const Payment = () => {
         .from('bookings')
         .insert({
           user_id: user.id,
-          movie_id: movieId,
+          movie_id: movie.id,
           movie_title: movie.title,
-          cinema_name: cinema?.name || 'Unknown Cinema',
-          screen_name: screenName,
-          showtime_date: date,
-          showtime_time: time,
+          cinema_name: 'CineBook Cinema',
+          screen_name: screen?.name || 'Screen 1',
+          showtime_date: showtime.show_date,
+          showtime_time: showtime.show_time,
           seats: seats,
           total_price: total,
           status: 'confirmed',
@@ -164,12 +167,17 @@ const Payment = () => {
 
       navigate('/booking-confirmed', { 
         state: { 
-          movie, 
-          cinema, 
-          date, 
-          time, 
+          movie: {
+            title: movie.title,
+            posterUrl: movie.poster_url,
+            rating: movie.rating,
+          }, 
+          cinema: { name: 'CineBook Cinema' }, 
+          date: formattedDate, 
+          time: formattedTime, 
           seats, 
-          total 
+          total,
+          screenName: screen?.name,
         } 
       });
     } catch (error) {
@@ -190,7 +198,7 @@ const Payment = () => {
     return groups ? groups.join(' ').substring(0, 19) : '';
   };
 
-  const formatExpiry = (value: string) => {
+  const formatExpiryDate = (value: string) => {
     const cleaned = value.replace(/\D/g, '');
     if (cleaned.length >= 2) {
       return cleaned.substring(0, 2) + '/' + cleaned.substring(2, 4);
@@ -312,7 +320,7 @@ const Payment = () => {
                         <Input
                           placeholder="MM/YY"
                           value={expiry}
-                          onChange={(e) => setExpiry(formatExpiry(e.target.value))}
+                          onChange={(e) => setExpiry(formatExpiryDate(e.target.value))}
                           maxLength={5}
                           className={errors.expiry ? "border-destructive" : ""}
                         />
@@ -365,16 +373,18 @@ const Payment = () => {
                 <h3 className="text-lg font-semibold text-foreground mb-4">Order Summary</h3>
                 
                 <div className="flex gap-4 mb-6">
-                  <img
-                    src={movie.posterUrl}
-                    alt={movie.title}
-                    className="w-20 h-28 rounded-lg object-cover"
-                  />
+                  {movie.poster_url && (
+                    <img
+                      src={movie.poster_url}
+                      alt={movie.title}
+                      className="w-20 h-28 rounded-lg object-cover"
+                    />
+                  )}
                   <div>
                     <h4 className="font-semibold text-foreground">{movie.title}</h4>
                     <p className="text-sm text-muted-foreground">{movie.rating}</p>
-                    <p className="text-sm text-muted-foreground mt-2">{cinema?.name}</p>
-                    <p className="text-sm text-muted-foreground">{date} • {time}</p>
+                    <p className="text-sm text-muted-foreground mt-2">{screen?.name}</p>
+                    <p className="text-sm text-muted-foreground">{formattedDate} • {formattedTime}</p>
                   </div>
                 </div>
 

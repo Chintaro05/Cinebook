@@ -1,44 +1,67 @@
 import { useState, useMemo } from 'react';
-import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Info } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Info, Loader2 } from 'lucide-react';
 import { CustomerLayout } from '@/components/layout/CustomerLayout';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { movies, cinemas, generateSeats } from '@/data/mockData';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
+import { useShowtimeById, useBookedSeats } from '@/hooks/useShowtimes';
+import { format } from 'date-fns';
 
 const SeatSelection = () => {
-  const { id } = useParams();
-  const [searchParams] = useSearchParams();
+  const { id } = useParams(); // This is now the showtime ID
   const navigate = useNavigate();
   
-  const movie = movies.find(m => m.id === id);
-  const cinemaId = searchParams.get('cinema') || '1';
-  const date = searchParams.get('date') || '';
-  const time = searchParams.get('time') || '';
-  const cinema = cinemas.find(c => c.id === cinemaId);
+  const { data: showtime, isLoading: isLoadingShowtime } = useShowtimeById(id);
+  const { data: bookedSeats = [], isLoading: isLoadingSeats } = useBookedSeats(
+    id,
+    showtime?.show_date || '',
+    showtime?.show_time || ''
+  );
 
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
-  
-  const seats = useMemo(() => generateSeats(8, 12), []);
-  const pricePerSeat = 15.00;
 
-  if (!movie) {
+  const screen = showtime?.screen;
+  const movie = showtime?.movie;
+  const pricePerSeat = showtime?.price || 15.00;
+
+  // Generate rows based on screen configuration
+  const rows = useMemo(() => {
+    if (!screen) return 'ABCDEFGH'.split('');
+    return 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.slice(0, screen.rows).split('');
+  }, [screen]);
+
+  const seatsPerRow = screen?.seats_per_row || 12;
+  const vipRows = screen?.vip_rows || [];
+
+  const isLoading = isLoadingShowtime || isLoadingSeats;
+
+  if (isLoading) {
     return (
       <CustomerLayout>
         <div className="min-h-screen flex items-center justify-center">
-          <p className="text-muted-foreground">Movie not found</p>
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       </CustomerLayout>
     );
   }
 
-  const toggleSeat = (seatId: string, status: string) => {
-    if (status === 'booked' || status === 'reserved') {
+  if (!showtime || !movie) {
+    return (
+      <CustomerLayout>
+        <div className="min-h-screen flex items-center justify-center">
+          <p className="text-muted-foreground">Showtime not found</p>
+        </div>
+      </CustomerLayout>
+    );
+  }
+
+  const toggleSeat = (seatId: string, isBooked: boolean) => {
+    if (isBooked) {
       toast({
         title: "Seat Unavailable",
-        description: status === 'booked' ? "This seat is already booked." : "This seat is currently reserved.",
+        description: "This seat is already booked.",
         variant: "destructive",
       });
       return;
@@ -69,10 +92,11 @@ const SeatSelection = () => {
       });
       return;
     }
-    navigate(`/payment?movie=${id}&cinema=${cinemaId}&date=${date}&time=${time}&seats=${selectedSeats.join(',')}`);
+    navigate(`/payment?showtime=${id}&seats=${selectedSeats.join(',')}`);
   };
 
-  const rows = 'ABCDEFGH'.split('');
+  const formattedDate = format(new Date(showtime.show_date), 'EEE, MMM d, yyyy');
+  const formattedTime = showtime.show_time.slice(0, 5); // Format HH:MM
 
   return (
     <CustomerLayout>
@@ -86,7 +110,7 @@ const SeatSelection = () => {
             <div>
               <h1 className="text-2xl font-bold text-foreground">{movie.title}</h1>
               <p className="text-muted-foreground">
-                {cinema?.name} • {date} • {time}
+                {screen?.name} • {formattedDate} • {formattedTime}
               </p>
             </div>
           </div>
@@ -104,45 +128,56 @@ const SeatSelection = () => {
                 {/* Seats */}
                 <div className="overflow-x-auto">
                   <div className="min-w-[600px] space-y-3">
-                    {rows.map((row) => (
-                      <div key={row} className="flex items-center justify-center gap-2">
-                        <span className="w-6 text-sm font-medium text-muted-foreground">{row}</span>
-                        <div className="flex gap-2">
-                          {Array.from({ length: 12 }, (_, i) => {
-                            const seatNum = i + 1;
-                            const seatId = `${row}${seatNum}`;
-                            const seatData = seats.find(s => s.row === row && s.number === seatNum);
-                            const status = selectedSeats.includes(seatId) 
-                              ? 'selected' 
-                              : seatData?.status || 'available';
+                    {rows.map((row) => {
+                      const isVipRow = vipRows.includes(rows.indexOf(row) + 1);
+                      return (
+                        <div key={row} className="flex items-center justify-center gap-2">
+                          <span className={cn(
+                            "w-6 text-sm font-medium",
+                            isVipRow ? "text-warning" : "text-muted-foreground"
+                          )}>{row}</span>
+                          <div className="flex gap-2">
+                            {Array.from({ length: seatsPerRow }, (_, i) => {
+                              const seatNum = i + 1;
+                              const seatId = `${row}${seatNum}`;
+                              const isBooked = bookedSeats.includes(seatId);
+                              const isSelected = selectedSeats.includes(seatId);
 
-                            return (
-                              <button
-                                key={seatId}
-                                onClick={() => toggleSeat(seatId, seatData?.status || 'available')}
-                                disabled={status === 'booked'}
-                                className={cn(
-                                  "seat",
-                                  status === 'available' && "seat-available",
-                                  status === 'selected' && "seat-selected",
-                                  status === 'booked' && "seat-booked",
-                                  status === 'reserved' && "seat-reserved"
-                                )}
-                                title={seatId}
-                              >
-                                {seatNum}
-                              </button>
-                            );
-                          })}
+                              let status = 'available';
+                              if (isSelected) status = 'selected';
+                              else if (isBooked) status = 'booked';
+
+                              return (
+                                <button
+                                  key={seatId}
+                                  onClick={() => toggleSeat(seatId, isBooked)}
+                                  disabled={isBooked}
+                                  className={cn(
+                                    "seat",
+                                    status === 'available' && "seat-available",
+                                    status === 'selected' && "seat-selected",
+                                    status === 'booked' && "seat-booked",
+                                    isVipRow && status === 'available' && "border-warning/50"
+                                  )}
+                                  title={`${seatId}${isVipRow ? ' (VIP)' : ''}`}
+                                >
+                                  {seatNum}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <span className={cn(
+                            "w-6 text-sm font-medium",
+                            isVipRow ? "text-warning" : "text-muted-foreground"
+                          )}>{row}</span>
                         </div>
-                        <span className="w-6 text-sm font-medium text-muted-foreground">{row}</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
                 {/* Legend */}
-                <div className="mt-8 flex items-center justify-center gap-6 text-sm">
+                <div className="mt-8 flex items-center justify-center gap-6 text-sm flex-wrap">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-t-lg bg-muted" />
                     <span className="text-muted-foreground">Available</span>
@@ -155,10 +190,12 @@ const SeatSelection = () => {
                     <div className="w-6 h-6 rounded-t-lg bg-muted/50" />
                     <span className="text-muted-foreground">Booked</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-t-lg bg-warning/60" />
-                    <span className="text-muted-foreground">Reserved</span>
-                  </div>
+                  {vipRows.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-t-lg bg-muted border border-warning/50" />
+                      <span className="text-muted-foreground">VIP</span>
+                    </div>
+                  )}
                 </div>
               </Card>
             </div>
@@ -169,16 +206,18 @@ const SeatSelection = () => {
                 <h3 className="text-lg font-semibold text-foreground mb-4">Booking Summary</h3>
                 
                 <div className="flex gap-4 mb-6">
-                  <img
-                    src={movie.posterUrl}
-                    alt={movie.title}
-                    className="w-20 h-28 rounded-lg object-cover"
-                  />
+                  {movie.poster_url && (
+                    <img
+                      src={movie.poster_url}
+                      alt={movie.title}
+                      className="w-20 h-28 rounded-lg object-cover"
+                    />
+                  )}
                   <div>
                     <h4 className="font-semibold text-foreground">{movie.title}</h4>
                     <p className="text-sm text-muted-foreground">{movie.rating}</p>
-                    <p className="text-sm text-muted-foreground mt-2">{cinema?.name}</p>
-                    <p className="text-sm text-muted-foreground">{date} • {time}</p>
+                    <p className="text-sm text-muted-foreground mt-2">{screen?.name}</p>
+                    <p className="text-sm text-muted-foreground">{formattedDate} • {formattedTime}</p>
                   </div>
                 </div>
 
@@ -195,7 +234,7 @@ const SeatSelection = () => {
                   </div>
                   <div className="flex justify-between mb-2">
                     <span className="text-muted-foreground">Price per seat</span>
-                    <span className="text-foreground font-medium">${pricePerSeat.toFixed(2)}</span>
+                    <span className="text-foreground font-medium">${Number(pricePerSeat).toFixed(2)}</span>
                   </div>
                 </div>
 
@@ -203,7 +242,7 @@ const SeatSelection = () => {
                   <div className="flex justify-between text-lg">
                     <span className="font-semibold text-foreground">Total</span>
                     <span className="font-bold text-primary">
-                      ${(selectedSeats.length * pricePerSeat).toFixed(2)}
+                      ${(selectedSeats.length * Number(pricePerSeat)).toFixed(2)}
                     </span>
                   </div>
                 </div>

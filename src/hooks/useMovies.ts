@@ -48,6 +48,25 @@ export function useMovies() {
   });
 }
 
+export function useMovie(id: string | undefined) {
+  return useQuery({
+    queryKey: ['movie', id],
+    queryFn: async () => {
+      if (!id) return null;
+      
+      const { data, error } = await supabase
+        .from('movies')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data as Movie | null;
+    },
+    enabled: !!id,
+  });
+}
+
 export function useCreateMovie() {
   const queryClient = useQueryClient();
   

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import { useRealtimeSubscription } from './useRealtimeSubscription';
 
 export interface Showtime {
   id: string;
@@ -32,6 +33,9 @@ export interface ShowtimeInput {
 }
 
 export function useShowtimes(date?: string) {
+  // Subscribe to real-time updates for showtimes
+  useRealtimeSubscription('showtimes', [['showtimes'], ['showtimes', date || '']]);
+  
   return useQuery({
     queryKey: ['showtimes', date],
     queryFn: async () => {
@@ -110,6 +114,9 @@ export function useShowtimesByMovie(movieId: string | undefined, date?: string) 
 }
 
 export function useBookedSeats(showtimeId: string | undefined, showtimeDate: string, showtimeTime: string) {
+  // Subscribe to real-time updates for bookings (seat availability)
+  useRealtimeSubscription('bookings', [['booked-seats', showtimeId || '', showtimeDate, showtimeTime]]);
+  
   return useQuery({
     queryKey: ['booked-seats', showtimeId, showtimeDate, showtimeTime],
     queryFn: async () => {

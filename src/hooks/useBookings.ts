@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { useRealtimeSubscription } from './useRealtimeSubscription';
 
 export interface Booking {
   id: string;
@@ -19,6 +20,9 @@ export interface Booking {
 
 export function useUserBookings() {
   const { user } = useAuth();
+
+  // Subscribe to real-time updates for bookings
+  useRealtimeSubscription('bookings', [['user-bookings', user?.id || ''], ['recent-bookings', user?.id || ''], ['booked-seats']]);
 
   return useQuery({
     queryKey: ['user-bookings', user?.id],
@@ -40,6 +44,9 @@ export function useUserBookings() {
 
 export function useRecentBookings(limit = 5) {
   const { user } = useAuth();
+
+  // Subscribe to real-time updates for bookings
+  useRealtimeSubscription('bookings', [['user-bookings', user?.id || ''], ['recent-bookings', user?.id || '', String(limit)]]);
 
   return useQuery({
     queryKey: ['recent-bookings', user?.id, limit],

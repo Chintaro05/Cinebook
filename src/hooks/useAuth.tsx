@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -8,8 +8,9 @@ interface AuthContextType {
   isLoading: boolean;
   isAdmin: boolean;
   signUp: (email: string, password: string, fullName: string, phone?: string) => Promise<{ error: Error | null }>;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null; isAdmin?: boolean }>;
   signOut: () => Promise<void>;
+  checkAdminRole: (userId: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -19,6 +20,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+
+  const checkAdminRole = useCallback(async (userId: string): Promise<boolean> => {
+    const { data, error } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .eq('role', 'admin')
+      .maybeSingle();
+    
+    const isUserAdmin = !error && !!data;
+    setIsAdmin(isUserAdmin);
+    return isUserAdmin;
+  }, []);
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -49,22 +63,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
-
-  const checkAdminRole = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .eq('role', 'admin')
-      .maybeSingle();
-    
-    if (!error && data) {
-      setIsAdmin(true);
-    } else {
-      setIsAdmin(false);
-    }
-  };
+  }, [checkAdminRole]);
 
   const signUp = async (email: string, password: string, fullName: string, phone?: string) => {
     const redirectUrl = `${window.location.origin}/`;
@@ -85,12 +84,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
     
-    return { error: error as Error | null };
+    if (error) {
+      return { error: error as Error | null };
+    }
+    
+    // Check admin role immediately after successful sign in
+    let userIsAdmin = false;
+    if (data.user) {
+      userIsAdmin = await checkAdminRole(data.user.id);
+    }
+    
+    return { error: null, isAdmin: userIsAdmin };
   };
 
   const signOut = async () => {
@@ -101,7 +110,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isLoading, isAdmin, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, isLoading, isAdmin, signUp, signIn, signOut, checkAdminRole }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,8 +1,8 @@
 import { useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { Movie } from '@/types/movie';
 import { MovieCard } from './MovieCard';
 import { Button } from '@/components/ui/button';
+import type { Movie } from '@/hooks/useMovies';
 
 interface MovieCarouselProps {
   title: string;

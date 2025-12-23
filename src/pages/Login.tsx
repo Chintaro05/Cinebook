@@ -16,17 +16,18 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [hasNavigated, setHasNavigated] = useState(false);
 
-  // Redirect if already logged in
+  // Redirect if already logged in (only on initial load, not after form submission)
   useEffect(() => {
-    if (user && !authLoading) {
+    if (user && !authLoading && !hasNavigated) {
       if (isAdmin) {
-        navigate('/admin');
+        navigate('/admin', { replace: true });
       } else {
-        navigate('/');
+        navigate('/', { replace: true });
       }
     }
-  }, [user, isAdmin, authLoading, navigate]);
+  }, [user, isAdmin, authLoading, navigate, hasNavigated]);
 
   const validateForm = () => {
     const newErrors: { email?: string; password?: string } = {};
@@ -82,12 +83,13 @@ const Login = () => {
     });
     
     setIsLoading(false);
+    setHasNavigated(true);
     
     // Redirect based on role
     if (userIsAdmin) {
-      navigate('/admin');
+      navigate('/admin', { replace: true });
     } else {
-      navigate('/');
+      navigate('/', { replace: true });
     }
   };
 

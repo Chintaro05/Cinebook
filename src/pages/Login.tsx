@@ -54,7 +54,7 @@ const Login = () => {
     
     setIsLoading(true);
     
-    const { error } = await signIn(email, password);
+    const { error, isAdmin: userIsAdmin } = await signIn(email, password);
     
     if (error) {
       let errorMessage = 'An error occurred during sign in';
@@ -82,6 +82,13 @@ const Login = () => {
     });
     
     setIsLoading(false);
+    
+    // Redirect based on role
+    if (userIsAdmin) {
+      navigate('/admin');
+    } else {
+      navigate('/');
+    }
   };
 
   if (authLoading) {

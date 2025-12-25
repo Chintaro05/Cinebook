@@ -10,6 +10,7 @@ import { toast } from '@/hooks/use-toast';
 import { profileFormSchema } from '@/lib/validation';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription';
 
 interface Booking {
   id: string;
@@ -89,10 +90,13 @@ const Profile = () => {
     }
   }, [user]);
 
-  // Fetch bookings when tab changes
+  // Subscribe to real-time updates for bookings
+  useRealtimeSubscription('bookings', [['profile-bookings', user?.id || '']]);
+
+  // Fetch bookings when tab changes or data updates
   useEffect(() => {
     const fetchBookings = async () => {
-      if (!user || activeTab !== 'bookings') return;
+      if (!user) return;
       
       setIsLoadingBookings(true);
       const { data, error } = await supabase
@@ -107,8 +111,10 @@ const Profile = () => {
       setIsLoadingBookings(false);
     };
 
-    fetchBookings();
-  }, [user, activeTab]);
+    if (user) {
+      fetchBookings();
+    }
+  }, [user]);
 
   // Fetch payments when tab changes
   useEffect(() => {

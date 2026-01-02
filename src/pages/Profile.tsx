@@ -24,6 +24,7 @@ interface Booking {
   total_price: number;
   status: string;
   created_at: string;
+  movie_poster_url?: string;
 }
 
 interface Payment {
@@ -93,20 +94,34 @@ const Profile = () => {
   // Subscribe to real-time updates for bookings
   useRealtimeSubscription('bookings', [['profile-bookings', user?.id || '']]);
 
-  // Fetch bookings when tab changes or data updates
+  // Fetch bookings with movie poster URLs
   useEffect(() => {
     const fetchBookings = async () => {
       if (!user) return;
       
       setIsLoadingBookings(true);
-      const { data, error } = await supabase
+      const { data: bookingsData, error } = await supabase
         .from('bookings')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (data) {
-        setBookings(data);
+      if (bookingsData) {
+        // Fetch movie posters for each booking
+        const movieIds = [...new Set(bookingsData.map(b => b.movie_id))];
+        const { data: moviesData } = await supabase
+          .from('movies')
+          .select('id, poster_url')
+          .in('id', movieIds);
+
+        const moviePosterMap = new Map(moviesData?.map(m => [m.id, m.poster_url]) || []);
+        
+        const bookingsWithPosters = bookingsData.map(booking => ({
+          ...booking,
+          movie_poster_url: moviePosterMap.get(booking.movie_id) || undefined
+        }));
+        
+        setBookings(bookingsWithPosters);
       }
       setIsLoadingBookings(false);
     };
@@ -432,11 +447,17 @@ const Profile = () => {
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                       <div className="flex gap-4">
                         <div className="w-20 h-28 rounded-lg overflow-hidden bg-secondary flex-shrink-0">
-                          <img
-                            src="https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=100&h=150&fit=crop"
-                            alt={booking.movie_title}
-                            className="w-full h-full object-cover"
-                          />
+                          {booking.movie_poster_url ? (
+                            <img
+                              src={booking.movie_poster_url}
+                              alt={booking.movie_title}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-muted">
+                              <Ticket className="w-8 h-8 text-muted-foreground" />
+                            </div>
+                          )}
                         </div>
                         <div>
                           <h3 className="font-semibold text-foreground text-lg">{booking.movie_title}</h3>

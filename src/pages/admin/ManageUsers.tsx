@@ -3,7 +3,7 @@ import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, Pencil, Trash2, Filter, UserCheck, UserX, Shield, User, Users } from 'lucide-react';
+import { Search, Pencil, Filter, UserCheck, UserX, Shield, User, Users, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import {
   Select,
@@ -20,116 +20,84 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-
-interface SystemUser {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  role: 'customer' | 'staff' | 'manager' | 'admin';
-  status: 'active' | 'inactive';
-  createdAt: string;
-}
-
-const mockUsers: SystemUser[] = [
-  { id: 'U001', name: 'John Doe', email: 'john@example.com', phone: '+1 234-567-8901', role: 'customer', status: 'active', createdAt: '2024-01-15' },
-  { id: 'U002', name: 'Jane Smith', email: 'jane@example.com', phone: '+1 234-567-8902', role: 'staff', status: 'active', createdAt: '2024-02-20' },
-  { id: 'U003', name: 'Mike Johnson', email: 'mike@example.com', phone: '+1 234-567-8903', role: 'manager', status: 'active', createdAt: '2024-03-10' },
-  { id: 'U004', name: 'Sarah Williams', email: 'sarah@example.com', phone: '+1 234-567-8904', role: 'customer', status: 'inactive', createdAt: '2024-04-05' },
-  { id: 'U005', name: 'David Brown', email: 'david@example.com', phone: '+1 234-567-8905', role: 'staff', status: 'active', createdAt: '2024-05-12' },
-  { id: 'U006', name: 'Emily Davis', email: 'emily@example.com', phone: '+1 234-567-8906', role: 'admin', status: 'active', createdAt: '2024-06-01' },
-];
+import { useUsers, useUpdateUserRole, useUpdateUserProfile, UserWithRole } from '@/hooks/useUsers';
 
 const ManageUsers = () => {
-  const [users, setUsers] = useState<SystemUser[]>(mockUsers);
+  const { data: users = [], isLoading } = useUsers();
+  const updateRole = useUpdateUserRole();
+  const updateProfile = useUpdateUserProfile();
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<SystemUser | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserWithRole | null>(null);
   
   // Form state
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
+    fullName: '',
     phone: '',
-    role: 'customer' as SystemUser['role'],
-    status: 'active' as SystemUser['status'],
+    role: 'customer' as 'admin' | 'customer' | 'staff',
   });
 
   const filteredUsers = users.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    const matchesSearch = (user.full_name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.id.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-    const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
-    return matchesSearch && matchesRole && matchesStatus;
+    return matchesSearch && matchesRole;
   });
 
-  const handleAddUser = () => {
-    const newUser: SystemUser = {
-      id: `U${String(users.length + 1).padStart(3, '0')}`,
-      ...formData,
-      createdAt: new Date().toISOString().split('T')[0],
-    };
-    setUsers([...users, newUser]);
-    setShowAddModal(false);
-    resetForm();
-    toast({
-      title: "User Created",
-      description: `${newUser.name} has been added successfully.`,
-    });
-  };
-
-  const handleEditUser = () => {
+  const handleEditUser = async () => {
     if (!selectedUser) return;
-    setUsers(users.map(u => u.id === selectedUser.id ? { ...u, ...formData } : u));
-    setShowEditModal(false);
-    setSelectedUser(null);
-    resetForm();
-    toast({
-      title: "User Updated",
-      description: "User information has been updated successfully.",
-    });
+    
+    try {
+      // Update profile
+      await updateProfile.mutateAsync({
+        userId: selectedUser.id,
+        fullName: formData.fullName,
+        phone: formData.phone,
+      });
+
+      // Update role if changed
+      if (formData.role !== selectedUser.role) {
+        await updateRole.mutateAsync({
+          userId: selectedUser.id,
+          role: formData.role,
+        });
+      }
+
+      setShowEditModal(false);
+      setSelectedUser(null);
+    } catch (error) {
+      // Error is handled by mutation
+    }
   };
 
-  const handleDeleteUser = (user: SystemUser) => {
-    setUsers(users.filter(u => u.id !== user.id));
-    toast({
-      title: "User Deleted",
-      description: `${user.name} has been removed from the system.`,
-      variant: "destructive",
-    });
+  const handleQuickRoleChange = async (user: UserWithRole, newRole: 'admin' | 'customer' | 'staff') => {
+    try {
+      await updateRole.mutateAsync({
+        userId: user.id,
+        role: newRole,
+      });
+    } catch (error) {
+      // Error is handled by mutation
+    }
   };
 
-  const openEditModal = (user: SystemUser) => {
+  const openEditModal = (user: UserWithRole) => {
     setSelectedUser(user);
     setFormData({
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
+      fullName: user.full_name || '',
+      phone: user.phone || '',
       role: user.role,
-      status: user.status,
     });
     setShowEditModal(true);
-  };
-
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      email: '',
-      phone: '',
-      role: 'customer',
-      status: 'active',
-    });
   };
 
   const getRoleIcon = (role: string) => {
     switch (role) {
       case 'admin': return <Shield className="w-4 h-4 text-primary" />;
-      case 'manager': return <Users className="w-4 h-4 text-accent" />;
-      case 'staff': return <UserCheck className="w-4 h-4 text-muted-foreground" />;
+      case 'staff': return <Users className="w-4 h-4 text-accent" />;
       default: return <User className="w-4 h-4 text-muted-foreground" />;
     }
   };
@@ -137,21 +105,26 @@ const ManageUsers = () => {
   const getRoleBadgeClass = (role: string) => {
     switch (role) {
       case 'admin': return 'bg-primary/10 text-primary';
-      case 'manager': return 'bg-accent/20 text-accent-foreground';
-      case 'staff': return 'bg-secondary text-secondary-foreground';
+      case 'staff': return 'bg-accent/20 text-accent-foreground';
       default: return 'bg-muted text-muted-foreground';
     }
   };
+
+  if (isLoading) {
+    return (
+      <AdminLayout title="Manage Users">
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout title="Manage Users">
       <Card className="bg-card border-border">
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-lg">All Users</CardTitle>
-          <Button variant="cinema" className="gap-2" onClick={() => { resetForm(); setShowAddModal(true); }}>
-            <Plus className="w-4 h-4" />
-            Add New User
-          </Button>
+          <CardTitle className="text-lg">All Users ({users.length})</CardTitle>
         </CardHeader>
         <CardContent>
           {/* Filters */}
@@ -174,18 +147,7 @@ const ManageUsers = () => {
                 <SelectItem value="all">All Roles</SelectItem>
                 <SelectItem value="customer">Customer</SelectItem>
                 <SelectItem value="staff">Staff</SelectItem>
-                <SelectItem value="manager">Manager</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent className="bg-card border-border">
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -195,49 +157,73 @@ const ManageUsers = () => {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">User ID</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Name</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">User</th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Email</th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Phone</th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Role</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Status</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Joined</th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredUsers.map((user) => (
-                  <tr key={user.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
-                    <td className="py-3 px-4 text-sm font-mono text-muted-foreground">{user.id}</td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                          <span className="text-sm font-medium text-primary">
-                            {user.name.charAt(0)}
-                          </span>
+                {filteredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-muted-foreground">
+                      No users found
+                    </td>
+                  </tr>
+                ) : (
+                  filteredUsers.map((user) => (
+                    <tr key={user.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                            <span className="text-sm font-medium text-primary">
+                              {(user.full_name || user.email).charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <span className="font-medium text-foreground">{user.full_name || 'No name'}</span>
                         </div>
-                        <span className="font-medium text-foreground">{user.name}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-sm text-muted-foreground">{user.email}</td>
-                    <td className="py-3 px-4 text-sm text-muted-foreground">{user.phone}</td>
-                    <td className="py-3 px-4">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium capitalize ${getRoleBadgeClass(user.role)}`}>
-                        {getRoleIcon(user.role)}
-                        {user.role}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
-                        user.status === 'active' 
-                          ? 'bg-green-500/10 text-green-500' 
-                          : 'bg-muted text-muted-foreground'
-                      }`}>
-                        {user.status === 'active' ? <UserCheck className="w-3 h-3" /> : <UserX className="w-3 h-3" />}
-                        {user.status}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
+                      </td>
+                      <td className="py-3 px-4 text-sm text-muted-foreground">{user.email}</td>
+                      <td className="py-3 px-4 text-sm text-muted-foreground">{user.phone || '-'}</td>
+                      <td className="py-3 px-4">
+                        <Select 
+                          value={user.role} 
+                          onValueChange={(value) => handleQuickRoleChange(user, value as 'admin' | 'customer' | 'staff')}
+                        >
+                          <SelectTrigger className="w-[130px] h-8">
+                            <div className="flex items-center gap-1.5">
+                              {getRoleIcon(user.role)}
+                              <span className="capitalize">{user.role}</span>
+                            </div>
+                          </SelectTrigger>
+                          <SelectContent className="bg-card border-border">
+                            <SelectItem value="customer">
+                              <div className="flex items-center gap-2">
+                                <User className="w-4 h-4" />
+                                Customer
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="staff">
+                              <div className="flex items-center gap-2">
+                                <Users className="w-4 h-4" />
+                                Staff
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="admin">
+                              <div className="flex items-center gap-2">
+                                <Shield className="w-4 h-4" />
+                                Admin
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      <td className="py-3 px-4 text-sm text-muted-foreground">
+                        {new Date(user.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="py-3 px-4">
                         <Button 
                           variant="ghost" 
                           size="icon" 
@@ -246,18 +232,10 @@ const ManageUsers = () => {
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-destructive hover:text-destructive"
-                          onClick={() => handleDeleteUser(user)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -267,82 +245,9 @@ const ManageUsers = () => {
             <p className="text-sm text-muted-foreground">
               Showing {filteredUsers.length} of {users.length} users
             </p>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled>Previous</Button>
-              <Button variant="outline" size="sm">Next</Button>
-            </div>
           </div>
         </CardContent>
       </Card>
-
-      {/* Add User Modal */}
-      <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
-        <DialogContent className="bg-card border-border max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add New User</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Enter full name"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="Enter email address"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone Number</Label>
-              <Input
-                id="phone"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                placeholder="Enter phone number"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Role</Label>
-              <Select value={formData.role} onValueChange={(v) => setFormData({ ...formData, role: v as SystemUser['role'] })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-card border-border">
-                  <SelectItem value="customer">Customer</SelectItem>
-                  <SelectItem value="staff">Staff</SelectItem>
-                  <SelectItem value="manager">Manager</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v as SystemUser['status'] })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-card border-border">
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddModal(false)}>Cancel</Button>
-            <Button variant="cinema" onClick={handleAddUser}>Add User</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Edit User Modal */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
@@ -352,20 +257,22 @@ const ManageUsers = () => {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-name">Full Name</Label>
-              <Input
-                id="edit-name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
               <Label htmlFor="edit-email">Email</Label>
               <Input
                 id="edit-email"
                 type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                value={selectedUser?.email || ''}
+                disabled
+                className="bg-muted"
+              />
+              <p className="text-xs text-muted-foreground">Email cannot be changed</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Full Name</Label>
+              <Input
+                id="edit-name"
+                value={formData.fullName}
+                onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
               />
             </div>
             <div className="space-y-2">
@@ -378,34 +285,31 @@ const ManageUsers = () => {
             </div>
             <div className="space-y-2">
               <Label>Role</Label>
-              <Select value={formData.role} onValueChange={(v) => setFormData({ ...formData, role: v as SystemUser['role'] })}>
+              <Select value={formData.role} onValueChange={(v) => setFormData({ ...formData, role: v as 'admin' | 'customer' | 'staff' })}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-card border-border">
                   <SelectItem value="customer">Customer</SelectItem>
                   <SelectItem value="staff">Staff</SelectItem>
-                  <SelectItem value="manager">Manager</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v as SystemUser['status'] })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-card border-border">
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditModal(false)}>Cancel</Button>
-            <Button variant="cinema" onClick={handleEditUser}>Save Changes</Button>
+            <Button 
+              variant="cinema" 
+              onClick={handleEditUser}
+              disabled={updateProfile.isPending || updateRole.isPending}
+            >
+              {(updateProfile.isPending || updateRole.isPending) ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                'Save Changes'
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

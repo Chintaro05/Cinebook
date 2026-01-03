@@ -3,81 +3,97 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DollarSign, Film, Ticket, Users, TrendingUp, TrendingDown, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-
-const stats = [
-  {
-    title: "Today's Revenue",
-    value: "$12,456",
-    change: "+12%",
-    trend: "up",
-    icon: DollarSign,
-    color: "text-success",
-    bgColor: "bg-success/10",
-  },
-  {
-    title: "Active Movies",
-    value: "24",
-    change: "+3",
-    trend: "up",
-    icon: Film,
-    color: "text-primary",
-    bgColor: "bg-primary/10",
-  },
-  {
-    title: "Tickets Sold Today",
-    value: "1,234",
-    change: "+8%",
-    trend: "up",
-    icon: Ticket,
-    color: "text-accent",
-    bgColor: "bg-accent/10",
-  },
-  {
-    title: "Active Users",
-    value: "8,456",
-    change: "-2%",
-    trend: "down",
-    icon: Users,
-    color: "text-warning",
-    bgColor: "bg-warning/10",
-  },
-];
-
-const recentBookings = [
-  { id: 'CB001', movie: 'Inception', user: 'John Doe', seats: 'A1, A2', amount: '$30.00', time: '2 min ago' },
-  { id: 'CB002', movie: 'The Dark Knight', user: 'Jane Smith', seats: 'C5-C7', amount: '$45.00', time: '5 min ago' },
-  { id: 'CB003', movie: 'Interstellar', user: 'Bob Wilson', seats: 'D3, D4', amount: '$32.00', time: '12 min ago' },
-  { id: 'CB004', movie: 'Dune', user: 'Alice Brown', seats: 'B1-B4', amount: '$60.00', time: '18 min ago' },
-];
+import { useDashboardData } from '@/hooks/useDashboard';
+import { Skeleton } from '@/components/ui/skeleton';
+import { formatDistanceToNow, parseISO } from 'date-fns';
 
 const AdminDashboard = () => {
+  const { data, isLoading } = useDashboardData();
+
+  const stats = data ? [
+    {
+      title: "Today's Revenue",
+      value: `$${data.stats.todayRevenue.toLocaleString()}`,
+      change: `${data.stats.todayRevenueChange >= 0 ? '+' : ''}${data.stats.todayRevenueChange}%`,
+      trend: data.stats.todayRevenueChange >= 0 ? "up" : "down",
+      icon: DollarSign,
+      color: "text-success",
+      bgColor: "bg-success/10",
+    },
+    {
+      title: "Active Movies",
+      value: data.stats.activeMovies.toString(),
+      change: `${data.stats.movieChange >= 0 ? '+' : ''}${data.stats.movieChange}`,
+      trend: data.stats.movieChange >= 0 ? "up" : "down",
+      icon: Film,
+      color: "text-primary",
+      bgColor: "bg-primary/10",
+    },
+    {
+      title: "Tickets Sold Today",
+      value: data.stats.ticketsSoldToday.toLocaleString(),
+      change: `${data.stats.ticketsChange >= 0 ? '+' : ''}${data.stats.ticketsChange}%`,
+      trend: data.stats.ticketsChange >= 0 ? "up" : "down",
+      icon: Ticket,
+      color: "text-accent",
+      bgColor: "bg-accent/10",
+    },
+    {
+      title: "Total Users",
+      value: data.stats.activeUsers.toLocaleString(),
+      change: `${data.stats.usersChange >= 0 ? '+' : ''}${data.stats.usersChange}`,
+      trend: data.stats.usersChange >= 0 ? "up" : "down",
+      icon: Users,
+      color: "text-warning",
+      bgColor: "bg-warning/10",
+    },
+  ] : [];
+
+  const formatTime = (timeStr: string) => {
+    const [hours, minutes] = timeStr.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 || 12;
+    return `${hour12}:${minutes} ${ampm}`;
+  };
+
   return (
     <AdminLayout title="Dashboard">
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {stats.map((stat) => (
-          <Card key={stat.title} className="bg-card border-border hover:border-primary/30 transition-colors">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">{stat.title}</p>
-                  <p className="text-3xl font-bold text-foreground">{stat.value}</p>
-                  <div className={`flex items-center gap-1 mt-2 text-sm ${stat.trend === 'up' ? 'text-success' : 'text-destructive'}`}>
-                    {stat.trend === 'up' ? (
-                      <TrendingUp className="w-4 h-4" />
-                    ) : (
-                      <TrendingDown className="w-4 h-4" />
-                    )}
-                    <span>{stat.change} from yesterday</span>
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className="bg-card border-border">
+              <CardContent className="p-6">
+                <Skeleton className="h-20 w-full" />
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          stats.map((stat) => (
+            <Card key={stat.title} className="bg-card border-border hover:border-primary/30 transition-colors">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">{stat.title}</p>
+                    <p className="text-3xl font-bold text-foreground">{stat.value}</p>
+                    <div className={`flex items-center gap-1 mt-2 text-sm ${stat.trend === 'up' ? 'text-success' : 'text-destructive'}`}>
+                      {stat.trend === 'up' ? (
+                        <TrendingUp className="w-4 h-4" />
+                      ) : (
+                        <TrendingDown className="w-4 h-4" />
+                      )}
+                      <span>{stat.change} from yesterday</span>
+                    </div>
+                  </div>
+                  <div className={`w-14 h-14 rounded-xl ${stat.bgColor} flex items-center justify-center`}>
+                    <stat.icon className={`w-7 h-7 ${stat.color}`} />
                   </div>
                 </div>
-                <div className={`w-14 h-14 rounded-xl ${stat.bgColor} flex items-center justify-center`}>
-                  <stat.icon className={`w-7 h-7 ${stat.color}`} />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
@@ -105,16 +121,34 @@ const AdminDashboard = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {recentBookings.map((booking) => (
-                    <tr key={booking.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
-                      <td className="py-3 px-4 text-sm font-mono text-primary">{booking.id}</td>
-                      <td className="py-3 px-4 text-sm text-foreground">{booking.movie}</td>
-                      <td className="py-3 px-4 text-sm text-foreground">{booking.user}</td>
-                      <td className="py-3 px-4 text-sm text-muted-foreground">{booking.seats}</td>
-                      <td className="py-3 px-4 text-sm font-medium text-foreground">{booking.amount}</td>
-                      <td className="py-3 px-4 text-sm text-muted-foreground">{booking.time}</td>
+                  {isLoading ? (
+                    Array.from({ length: 4 }).map((_, i) => (
+                      <tr key={i}>
+                        <td colSpan={6} className="py-3 px-4">
+                          <Skeleton className="h-6 w-full" />
+                        </td>
+                      </tr>
+                    ))
+                  ) : data?.recentBookings.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-muted-foreground">
+                        No bookings yet
+                      </td>
                     </tr>
-                  ))}
+                  ) : (
+                    data?.recentBookings.map((booking) => (
+                      <tr key={booking.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                        <td className="py-3 px-4 text-sm font-mono text-primary">{booking.id}</td>
+                        <td className="py-3 px-4 text-sm text-foreground">{booking.movie_title}</td>
+                        <td className="py-3 px-4 text-sm text-foreground">{booking.customer_name}</td>
+                        <td className="py-3 px-4 text-sm text-muted-foreground">{booking.seats.join(', ')}</td>
+                        <td className="py-3 px-4 text-sm font-medium text-foreground">${booking.amount.toFixed(2)}</td>
+                        <td className="py-3 px-4 text-sm text-muted-foreground">
+                          {formatDistanceToNow(parseISO(booking.created_at), { addSuffix: true })}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -155,18 +189,30 @@ const AdminDashboard = () => {
           <CardTitle className="text-lg">Today's Upcoming Showtimes</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {['10:00 AM', '1:30 PM', '4:45 PM', '7:15 PM'].map((time) => (
-              <div key={time} className="p-4 rounded-xl bg-secondary/50 border border-border">
-                <p className="text-lg font-bold text-foreground mb-1">{time}</p>
-                <p className="text-sm text-muted-foreground">Inception - Screen 1</p>
-                <div className="mt-3 flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">72/100 seats</span>
-                  <span className="px-2 py-0.5 rounded-full bg-success/20 text-success text-xs">On Sale</span>
+          {isLoading ? (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-24 w-full" />
+              ))}
+            </div>
+          ) : data?.todayShowtimes.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">No showtimes scheduled for today</p>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {data?.todayShowtimes.map((showtime) => (
+                <div key={showtime.id} className="p-4 rounded-xl bg-secondary/50 border border-border">
+                  <p className="text-lg font-bold text-foreground mb-1">{formatTime(showtime.show_time)}</p>
+                  <p className="text-sm text-muted-foreground">{showtime.movie_title} - {showtime.screen_name}</p>
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">
+                      {showtime.booked_seats}/{showtime.total_capacity} seats
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-success/20 text-success text-xs">On Sale</span>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </AdminLayout>

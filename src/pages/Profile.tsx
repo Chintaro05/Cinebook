@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Mail, Phone, Lock, Calendar, MapPin, Ticket, CreditCard, Receipt, Download } from 'lucide-react';
+import { User, Mail, Phone, Lock, Calendar, MapPin, Ticket, CreditCard, Receipt, Download, AlertCircle, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { CustomerLayout } from '@/components/layout/CustomerLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,16 @@ import { profileFormSchema } from '@/lib/validation';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface Booking {
   id: string;
@@ -57,6 +67,9 @@ const Profile = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [isLoadingBookings, setIsLoadingBookings] = useState(false);
   const [isLoadingPayments, setIsLoadingPayments] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [bookingToCancel, setBookingToCancel] = useState<Booking | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -204,29 +217,84 @@ const Profile = () => {
     setIsEditing(false);
   };
 
-  const handleCancelBooking = async (bookingId: string) => {
-    const { error } = await supabase
+  const openCancelDialog = (booking: Booking) => {
+    setBookingToCancel(booking);
+    setCancelDialogOpen(true);
+  };
+
+  const handleCancelBooking = async () => {
+    if (!bookingToCancel) return;
+    
+    setIsCancelling(true);
+    
+    // Update booking status to cancelled
+    const { error: bookingError } = await supabase
       .from('bookings')
       .update({ status: 'cancelled' })
-      .eq('id', bookingId);
+      .eq('id', bookingToCancel.id);
 
-    if (error) {
+    if (bookingError) {
       toast({
         title: "Error",
         description: "Failed to cancel booking.",
         variant: "destructive",
       });
+      setIsCancelling(false);
       return;
     }
 
+    // Update payment status to refund_pending
+    const { error: paymentError } = await supabase
+      .from('payments')
+      .update({ status: 'refund_pending' })
+      .eq('booking_id', bookingToCancel.id);
+
+    if (paymentError) {
+      console.error('Failed to update payment status:', paymentError);
+    }
+
     setBookings(prev => prev.map(b => 
-      b.id === bookingId ? { ...b, status: 'cancelled' } : b
+      b.id === bookingToCancel.id ? { ...b, status: 'cancelled' } : b
     ));
+
+    // Update payments list if loaded
+    setPayments(prev => prev.map(p => 
+      p.booking_id === bookingToCancel.id ? { ...p, status: 'refund_pending' } : p
+    ));
+
+    setIsCancelling(false);
+    setCancelDialogOpen(false);
+    setBookingToCancel(null);
 
     toast({
       title: "Booking Cancelled",
       description: "Your booking has been cancelled. A refund will be processed within 3-5 business days.",
     });
+  };
+
+  // Refund status badge component
+  const RefundStatusBadge = ({ bookingId, payments }: { bookingId: string; payments: Payment[] }) => {
+    const payment = payments.find(p => p.booking_id === bookingId);
+    if (!payment) return null;
+    
+    const statusConfig = {
+      refund_pending: { label: 'Refund Pending', icon: Clock, className: 'bg-warning/20 text-warning' },
+      refund_processing: { label: 'Processing Refund', icon: Clock, className: 'bg-primary/20 text-primary' },
+      refunded: { label: 'Refunded', icon: CheckCircle, className: 'bg-success/20 text-success' },
+      completed: { label: 'Refund Available', icon: AlertCircle, className: 'bg-muted text-muted-foreground' },
+    };
+    
+    const config = statusConfig[payment.status as keyof typeof statusConfig];
+    if (!config) return null;
+    
+    const Icon = config.icon;
+    
+    return (
+      <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1", config.className)}>
+        <Icon className="w-3 h-3" />
+        {config.label}
+      </span>
+    );
   };
 
   const handleDownloadReceipt = (transactionId: string) => {
@@ -250,6 +318,7 @@ const Profile = () => {
 
   const completedPayments = payments.filter(p => p.status === 'completed');
   const refundedPayments = payments.filter(p => p.status === 'refunded');
+  const pendingRefunds = payments.filter(p => p.status === 'refund_pending' || p.status === 'refund_processing');
 
   return (
     <CustomerLayout>
@@ -479,14 +548,19 @@ const Profile = () => {
                       </div>
 
                       <div className="flex flex-col items-end gap-2">
-                        <span className={cn(
-                          "px-3 py-1 rounded-full text-xs font-medium",
-                          booking.status === 'confirmed' && "bg-success/20 text-success",
-                          booking.status === 'cancelled' && "bg-destructive/20 text-destructive",
-                          booking.status === 'pending' && "bg-warning/20 text-warning"
-                        )}>
-                          {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                        </span>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={cn(
+                            "px-3 py-1 rounded-full text-xs font-medium",
+                            booking.status === 'confirmed' && "bg-success/20 text-success",
+                            booking.status === 'cancelled' && "bg-destructive/20 text-destructive",
+                            booking.status === 'pending' && "bg-warning/20 text-warning"
+                          )}>
+                            {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                          </span>
+                          {booking.status === 'cancelled' && (
+                            <RefundStatusBadge bookingId={booking.id} payments={payments} />
+                          )}
+                        </div>
                         <span className="text-lg font-bold text-foreground">
                           ${Number(booking.total_price).toFixed(2)}
                         </span>
@@ -499,7 +573,7 @@ const Profile = () => {
                               variant="ghost"
                               size="sm"
                               className="text-destructive hover:text-destructive"
-                              onClick={() => handleCancelBooking(booking.id)}
+                              onClick={() => openCancelDialog(booking)}
                             >
                               Cancel
                             </Button>
@@ -531,7 +605,7 @@ const Profile = () => {
               ) : (
                 <>
                   {/* Summary Cards */}
-                  <div className="grid grid-cols-3 gap-4 mb-6">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     <Card className="p-4 bg-card border-border">
                       <p className="text-sm text-muted-foreground">Total Spent</p>
                       <p className="text-2xl font-bold text-foreground">
@@ -543,8 +617,14 @@ const Profile = () => {
                       <p className="text-2xl font-bold text-foreground">{payments.length}</p>
                     </Card>
                     <Card className="p-4 bg-card border-border">
-                      <p className="text-sm text-muted-foreground">Refunded</p>
+                      <p className="text-sm text-muted-foreground">Pending Refunds</p>
                       <p className="text-2xl font-bold text-warning">
+                        ${pendingRefunds.reduce((sum, t) => sum + Number(t.amount), 0).toFixed(2)}
+                      </p>
+                    </Card>
+                    <Card className="p-4 bg-card border-border">
+                      <p className="text-sm text-muted-foreground">Refunded</p>
+                      <p className="text-2xl font-bold text-success">
                         ${refundedPayments.reduce((sum, t) => sum + Number(t.amount), 0).toFixed(2)}
                       </p>
                     </Card>
@@ -574,12 +654,19 @@ const Profile = () => {
                               ${Number(payment.amount).toFixed(2)}
                             </p>
                             <span className={cn(
-                              "text-xs font-medium",
+                              "text-xs font-medium flex items-center justify-end gap-1",
                               payment.status === 'completed' && "text-success",
                               payment.status === 'pending' && "text-warning",
-                              payment.status === 'refunded' && "text-muted-foreground"
+                              payment.status === 'refunded' && "text-muted-foreground",
+                              payment.status === 'refund_pending' && "text-warning",
+                              payment.status === 'refund_processing' && "text-primary"
                             )}>
-                              {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
+                              {payment.status === 'refund_pending' && <Clock className="w-3 h-3" />}
+                              {payment.status === 'refund_processing' && <Clock className="w-3 h-3" />}
+                              {payment.status === 'refunded' && <CheckCircle className="w-3 h-3" />}
+                              {payment.status === 'refund_pending' ? 'Refund Pending' :
+                               payment.status === 'refund_processing' ? 'Processing Refund' :
+                               payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
                             </span>
                           </div>
                           <Button
@@ -599,6 +686,36 @@ const Profile = () => {
           )}
         </div>
       </div>
+
+      {/* Cancel Booking Confirmation Dialog */}
+      <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Booking?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel your booking for <strong>{bookingToCancel?.movie_title}</strong>?
+              <br /><br />
+              <span className="text-muted-foreground">
+                • Your seats will be released and available for others to book
+                <br />
+                • A refund of <strong>${bookingToCancel?.total_price.toFixed(2)}</strong> will be processed within 3-5 business days
+                <br />
+                • This action cannot be undone
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isCancelling}>Keep Booking</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCancelBooking}
+              disabled={isCancelling}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isCancelling ? 'Cancelling...' : 'Yes, Cancel Booking'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </CustomerLayout>
   );
 };

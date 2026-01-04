@@ -88,7 +88,7 @@ export function Header() {
             <Link to="/?tab=coming-soon" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
               Coming Soon
             </Link>
-            <Link to="/profile" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">My Profile
+            <Link to="/profile" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">My Account
           </Link>
             <Link to="/contact" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
               Contact

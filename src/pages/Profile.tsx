@@ -244,13 +244,36 @@ const Profile = () => {
     }
 
     // Update payment status to refund_pending
-    const { error: paymentError } = await supabase
+    const { data: paymentData, error: paymentError } = await supabase
       .from('payments')
       .update({ status: 'refund_pending' })
-      .eq('booking_id', bookingToCancel.id);
+      .eq('booking_id', bookingToCancel.id)
+      .select()
+      .single();
 
     if (paymentError) {
       console.error('Failed to update payment status:', paymentError);
+    }
+
+    // Send cancellation email notification
+    if (profileData.email) {
+      try {
+        await supabase.functions.invoke('send-refund-email', {
+          body: {
+            type: 'booking_cancelled',
+            bookingId: bookingToCancel.id,
+            userEmail: profileData.email,
+            userName: profileData.name,
+            movieTitle: bookingToCancel.movie_title,
+            showDate: bookingToCancel.showtime_date,
+            showTime: bookingToCancel.showtime_time,
+            seats: bookingToCancel.seats,
+            amount: bookingToCancel.total_price,
+          },
+        });
+      } catch (emailError) {
+        console.error('Failed to send cancellation email:', emailError);
+      }
     }
 
     setBookings(prev => prev.map(b => 
@@ -268,7 +291,7 @@ const Profile = () => {
 
     toast({
       title: "Booking Cancelled",
-      description: "Your booking has been cancelled. A refund will be processed within 3-5 business days.",
+      description: "Your booking has been cancelled. You will receive a confirmation email shortly.",
     });
   };
 

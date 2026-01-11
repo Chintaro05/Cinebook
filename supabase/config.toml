@@ -1,1 +1,4 @@
 project_id = "piqhabpopuzsnurlewnd"
+
+[functions.send-refund-email]
+verify_jwt = false

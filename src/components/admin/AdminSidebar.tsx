@@ -10,7 +10,8 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
-  MessageSquare
+  MessageSquare,
+  RefreshCw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
@@ -23,6 +24,7 @@ const menuItems = [
   { icon: Calendar, label: 'Showtimes', path: '/admin/showtimes' },
   { icon: Monitor, label: 'Screening Rooms', path: '/admin/screens' },
   { icon: Ticket, label: 'Ticket Types', path: '/admin/tickets' },
+  { icon: RefreshCw, label: 'Refunds', path: '/admin/refunds' },
   { icon: BarChart3, label: 'Revenue Reports', path: '/admin/reports' },
   { icon: MessageSquare, label: 'Feedback', path: '/admin/feedback' },
   { icon: Users, label: 'Users', path: '/admin/users' },

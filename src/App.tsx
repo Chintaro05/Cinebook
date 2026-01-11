@@ -24,6 +24,7 @@ import ManageTickets from "./pages/admin/ManageTickets";
 import RevenueReports from "./pages/admin/RevenueReports";
 import ManageFeedback from "./pages/admin/ManageFeedback";
 import ManageUsers from "./pages/admin/ManageUsers";
+import ManageRefunds from "./pages/admin/ManageRefunds";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -55,6 +56,7 @@ const App = () => (
             <Route path="/admin/showtimes" element={<ProtectedAdminRoute><ManageShowtimes /></ProtectedAdminRoute>} />
             <Route path="/admin/screens" element={<ProtectedAdminRoute><ManageScreens /></ProtectedAdminRoute>} />
             <Route path="/admin/tickets" element={<ProtectedAdminRoute><ManageTickets /></ProtectedAdminRoute>} />
+            <Route path="/admin/refunds" element={<ProtectedAdminRoute><ManageRefunds /></ProtectedAdminRoute>} />
             <Route path="/admin/reports" element={<ProtectedAdminRoute><RevenueReports /></ProtectedAdminRoute>} />
             <Route path="/admin/feedback" element={<ProtectedAdminRoute><ManageFeedback /></ProtectedAdminRoute>} />
             <Route path="/admin/users" element={<ProtectedAdminRoute><ManageUsers /></ProtectedAdminRoute>} />

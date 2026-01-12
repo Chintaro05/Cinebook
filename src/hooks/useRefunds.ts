@@ -151,3 +151,100 @@ export function useUpdateRefundStatus() {
     },
   });
 }
+
+export function useBulkUpdateRefundStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ 
+      paymentIds, 
+      newStatus,
+      sendEmails = true 
+    }: { 
+      paymentIds: string[]; 
+      newStatus: 'refund_processing' | 'refunded';
+      sendEmails?: boolean;
+    }) => {
+      const results = [];
+      
+      for (const paymentId of paymentIds) {
+        // Get payment details
+        const { data: payment, error: fetchError } = await supabase
+          .from('payments')
+          .select(`
+            *,
+            booking:bookings(movie_title, showtime_date, showtime_time, seats)
+          `)
+          .eq('id', paymentId)
+          .single();
+
+        if (fetchError) {
+          console.error(`Failed to fetch payment ${paymentId}:`, fetchError);
+          continue;
+        }
+
+        // Get user profile
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('email, full_name')
+          .eq('id', payment.user_id)
+          .single();
+
+        // Update the payment status
+        const { error: updateError } = await supabase
+          .from('payments')
+          .update({ status: newStatus })
+          .eq('id', paymentId);
+
+        if (updateError) {
+          console.error(`Failed to update payment ${paymentId}:`, updateError);
+          continue;
+        }
+
+        results.push({ paymentId, success: true });
+
+        // Send email notification if requested
+        if (sendEmails && profile?.email) {
+          const emailType = newStatus === 'refund_processing' ? 'refund_processing' : 'refund_completed';
+          
+          try {
+            await supabase.functions.invoke('send-refund-email', {
+              body: {
+                type: emailType,
+                bookingId: payment.booking_id,
+                userEmail: profile.email,
+                userName: profile.full_name,
+                movieTitle: payment.booking?.movie_title || 'Movie',
+                showDate: payment.booking?.showtime_date || '',
+                showTime: payment.booking?.showtime_time || '',
+                seats: payment.booking?.seats || [],
+                amount: payment.amount,
+              },
+            });
+          } catch (err) {
+            console.error('Error sending email:', err);
+          }
+        }
+      }
+
+      return { processed: results.length, total: paymentIds.length };
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['refundable-payments'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+      
+      toast({
+        title: "Bulk Update Complete",
+        description: `Successfully updated ${data.processed} of ${data.total} refunds to ${variables.newStatus === 'refund_processing' ? 'Processing' : 'Completed'}`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to process bulk refund update",
+        variant: "destructive",
+      });
+      console.error('Bulk update error:', error);
+    },
+  });
+}

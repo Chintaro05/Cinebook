@@ -3,6 +3,7 @@ import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -32,27 +33,33 @@ import {
   RefreshCw, 
   Clock, 
   CheckCircle, 
-  ArrowRight,
   Mail,
   User,
   Film,
   Calendar,
   DollarSign,
-  Loader2
+  Loader2,
+  CheckSquare
 } from 'lucide-react';
-import { useRefundablePayments, useUpdateRefundStatus, RefundablePayment } from '@/hooks/useRefunds';
+import { useRefundablePayments, useUpdateRefundStatus, useBulkUpdateRefundStatus, RefundablePayment } from '@/hooks/useRefunds';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 const ManageRefunds = () => {
   const { data: payments, isLoading } = useRefundablePayments();
   const updateStatus = useUpdateRefundStatus();
+  const bulkUpdateStatus = useBulkUpdateRefundStatus();
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     payment: RefundablePayment | null;
     newStatus: 'refund_processing' | 'refunded';
   }>({ open: false, payment: null, newStatus: 'refund_processing' });
+  const [bulkConfirmDialog, setBulkConfirmDialog] = useState<{
+    open: boolean;
+    newStatus: 'refund_processing' | 'refunded';
+  }>({ open: false, newStatus: 'refunded' });
 
   const filteredPayments = payments?.filter(p => 
     statusFilter === 'all' || p.status === statusFilter
@@ -89,6 +96,51 @@ const ManageRefunds = () => {
     }
     setConfirmDialog({ open: false, payment: null, newStatus: 'refund_processing' });
   };
+
+  // Bulk selection handlers
+  const selectablePayments = filteredPayments.filter(p => p.status !== 'refunded');
+  const processingPayments = filteredPayments.filter(p => p.status === 'refund_processing');
+  
+  const toggleSelect = (id: string) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedIds(newSet);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === selectablePayments.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(selectablePayments.map(p => p.id)));
+    }
+  };
+
+  const handleBulkComplete = () => {
+    if (selectedIds.size === 0) return;
+    setBulkConfirmDialog({ open: true, newStatus: 'refunded' });
+  };
+
+  const confirmBulkUpdate = () => {
+    const paymentIds = Array.from(selectedIds);
+    bulkUpdateStatus.mutate(
+      { paymentIds, newStatus: bulkConfirmDialog.newStatus, sendEmails: true },
+      {
+        onSuccess: () => {
+          setSelectedIds(new Set());
+        },
+      }
+    );
+    setBulkConfirmDialog({ open: false, newStatus: 'refunded' });
+  };
+
+  const selectedCount = selectedIds.size;
+  const selectedAmount = filteredPayments
+    .filter(p => selectedIds.has(p.id))
+    .reduce((sum, p) => sum + p.amount, 0);
 
   if (isLoading) {
     return (
@@ -148,21 +200,57 @@ const ManageRefunds = () => {
           </Card>
         </div>
 
-        {/* Filter */}
+        {/* Filter and Bulk Actions */}
         <Card className="p-4">
-          <div className="flex items-center gap-4">
-            <span className="text-sm font-medium text-muted-foreground">Filter by status:</span>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Select status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Refunds</SelectItem>
-                <SelectItem value="refund_pending">Pending</SelectItem>
-                <SelectItem value="refund_processing">Processing</SelectItem>
-                <SelectItem value="refunded">Completed</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-medium text-muted-foreground">Filter by status:</span>
+              <Select value={statusFilter} onValueChange={(value) => {
+                setStatusFilter(value);
+                setSelectedIds(new Set());
+              }}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Refunds</SelectItem>
+                  <SelectItem value="refund_pending">Pending</SelectItem>
+                  <SelectItem value="refund_processing">Processing</SelectItem>
+                  <SelectItem value="refunded">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Bulk Actions */}
+            {selectedCount > 0 && (
+              <div className="flex items-center gap-3 p-2 bg-primary/10 rounded-lg border border-primary/30">
+                <CheckSquare className="w-4 h-4 text-primary" />
+                <span className="text-sm font-medium">
+                  {selectedCount} selected (${selectedAmount.toFixed(2)})
+                </span>
+                <Button
+                  size="sm"
+                  variant="cinema"
+                  onClick={handleBulkComplete}
+                  disabled={bulkUpdateStatus.isPending}
+                  className="gap-1"
+                >
+                  {bulkUpdateStatus.isPending ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <CheckCircle className="w-3 h-3" />
+                  )}
+                  Mark All Complete
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSelectedIds(new Set())}
+                >
+                  Clear
+                </Button>
+              </div>
+            )}
           </div>
         </Card>
 
@@ -171,6 +259,13 @@ const ManageRefunds = () => {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={selectablePayments.length > 0 && selectedIds.size === selectablePayments.length}
+                    onCheckedChange={toggleSelectAll}
+                    aria-label="Select all"
+                  />
+                </TableHead>
                 <TableHead>Customer</TableHead>
                 <TableHead>Movie</TableHead>
                 <TableHead>Date</TableHead>
@@ -183,13 +278,24 @@ const ManageRefunds = () => {
             <TableBody>
               {filteredPayments.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     No refund requests found
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredPayments.map((payment) => (
-                  <TableRow key={payment.id}>
+                  <TableRow 
+                    key={payment.id}
+                    className={cn(selectedIds.has(payment.id) && "bg-primary/5")}
+                  >
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.has(payment.id)}
+                        onCheckedChange={() => toggleSelect(payment.id)}
+                        disabled={payment.status === 'refunded'}
+                        aria-label={`Select refund for ${payment.profile?.full_name}`}
+                      />
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <User className="w-4 h-4 text-muted-foreground" />
@@ -294,6 +400,26 @@ const ManageRefunds = () => {
               <AlertDialogAction onClick={confirmStatusUpdate} className="gap-2">
                 <Mail className="w-4 h-4" />
                 {confirmDialog.newStatus === 'refund_processing' ? 'Start Processing' : 'Complete & Notify'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Bulk Confirmation Dialog */}
+        <AlertDialog open={bulkConfirmDialog.open} onOpenChange={(open) => !open && setBulkConfirmDialog({ open: false, newStatus: 'refunded' })}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Complete {selectedCount} Refunds?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will mark <strong>{selectedCount} refunds</strong> totaling <strong>${selectedAmount.toFixed(2)}</strong> as "Completed" and send confirmation emails to all customers. 
+                Make sure all refunds have been processed in your payment system.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmBulkUpdate} className="gap-2">
+                <CheckCircle className="w-4 h-4" />
+                Complete All & Notify
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

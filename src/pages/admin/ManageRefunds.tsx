@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -39,18 +39,27 @@ import {
   Calendar,
   DollarSign,
   Loader2,
-  CheckSquare
+  CheckSquare,
+  CreditCard,
+  Wallet,
+  Radio,
+  Banknote,
+  TrendingUp
 } from 'lucide-react';
 import { useRefundablePayments, useUpdateRefundStatus, useBulkUpdateRefundStatus, RefundablePayment } from '@/hooks/useRefunds';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/hooks/use-toast';
 
 const ManageRefunds = () => {
-  const { data: payments, isLoading } = useRefundablePayments();
+  const { data: payments, isLoading, refetch } = useRefundablePayments();
   const updateStatus = useUpdateRefundStatus();
   const bulkUpdateStatus = useBulkUpdateRefundStatus();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     payment: RefundablePayment | null;
@@ -61,6 +70,42 @@ const ManageRefunds = () => {
     newStatus: 'refund_processing' | 'refunded';
   }>({ open: false, newStatus: 'refunded' });
 
+  // Real-time subscription for payments
+  useEffect(() => {
+    const channel = supabase
+      .channel('refunds-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'payments',
+        },
+        (payload) => {
+          console.log('Realtime payment update:', payload);
+          setLastUpdate(new Date());
+          refetch();
+          
+          if (payload.eventType === 'UPDATE') {
+            const newStatus = (payload.new as any).status;
+            if (newStatus === 'refund_pending') {
+              toast({
+                title: "New Refund Request",
+                description: "A new refund request has been received",
+              });
+            }
+          }
+        }
+      )
+      .subscribe((status) => {
+        setIsRealtimeConnected(status === 'SUBSCRIBED');
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [refetch]);
+
   const filteredPayments = payments?.filter(p => 
     statusFilter === 'all' || p.status === statusFilter
   ) || [];
@@ -68,6 +113,23 @@ const ManageRefunds = () => {
   const pendingCount = payments?.filter(p => p.status === 'refund_pending').length || 0;
   const processingCount = payments?.filter(p => p.status === 'refund_processing').length || 0;
   const completedCount = payments?.filter(p => p.status === 'refunded').length || 0;
+
+  // Calculate total amounts
+  const pendingAmount = payments?.filter(p => p.status === 'refund_pending').reduce((sum, p) => sum + p.amount, 0) || 0;
+  const processingAmount = payments?.filter(p => p.status === 'refund_processing').reduce((sum, p) => sum + p.amount, 0) || 0;
+  const completedAmount = payments?.filter(p => p.status === 'refunded').reduce((sum, p) => sum + p.amount, 0) || 0;
+  const totalRefundAmount = pendingAmount + processingAmount + completedAmount;
+
+  const getPaymentMethodIcon = (method: string) => {
+    switch (method.toLowerCase()) {
+      case 'credit card':
+        return <CreditCard className="w-4 h-4" />;
+      case 'e-wallet':
+        return <Wallet className="w-4 h-4" />;
+      default:
+        return <Banknote className="w-4 h-4" />;
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -161,10 +223,27 @@ const ManageRefunds = () => {
             <h1 className="text-2xl font-bold text-foreground">Manage Refunds</h1>
             <p className="text-muted-foreground">Process and track customer refund requests</p>
           </div>
+          <div className="flex items-center gap-3">
+            {/* Real-time status indicator */}
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/50 border">
+              <Radio className={cn(
+                "w-3 h-3",
+                isRealtimeConnected ? "text-green-500 animate-pulse" : "text-muted-foreground"
+              )} />
+              <span className="text-xs font-medium">
+                {isRealtimeConnected ? 'Live' : 'Connecting...'}
+              </span>
+            </div>
+            {lastUpdate && (
+              <span className="text-xs text-muted-foreground">
+                Last update: {format(lastUpdate, 'HH:mm:ss')}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="p-4 bg-warning/10 border-warning/30">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-warning/20">
@@ -173,6 +252,7 @@ const ManageRefunds = () => {
               <div>
                 <p className="text-sm text-muted-foreground">Pending Refunds</p>
                 <p className="text-2xl font-bold text-foreground">{pendingCount}</p>
+                <p className="text-sm font-medium text-warning">${pendingAmount.toFixed(2)}</p>
               </div>
             </div>
           </Card>
@@ -184,6 +264,7 @@ const ManageRefunds = () => {
               <div>
                 <p className="text-sm text-muted-foreground">Processing</p>
                 <p className="text-2xl font-bold text-foreground">{processingCount}</p>
+                <p className="text-sm font-medium text-primary">${processingAmount.toFixed(2)}</p>
               </div>
             </div>
           </Card>
@@ -195,6 +276,19 @@ const ManageRefunds = () => {
               <div>
                 <p className="text-sm text-muted-foreground">Completed</p>
                 <p className="text-2xl font-bold text-foreground">{completedCount}</p>
+                <p className="text-sm font-medium text-green-500">${completedAmount.toFixed(2)}</p>
+              </div>
+            </div>
+          </Card>
+          <Card className="p-4 bg-accent/50 border-accent">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-accent">
+                <TrendingUp className="w-5 h-5 text-accent-foreground" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Total Refunds</p>
+                <p className="text-2xl font-bold text-foreground">{(pendingCount + processingCount + completedCount)}</p>
+                <p className="text-sm font-medium text-accent-foreground">${totalRefundAmount.toFixed(2)}</p>
               </div>
             </div>
           </Card>
@@ -270,6 +364,7 @@ const ManageRefunds = () => {
                 <TableHead>Movie</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Amount</TableHead>
+                <TableHead>Payment Method</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Requested</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -278,7 +373,7 @@ const ManageRefunds = () => {
             <TableBody>
               {filteredPayments.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     No refund requests found
                   </TableCell>
                 </TableRow>
@@ -329,6 +424,17 @@ const ManageRefunds = () => {
                       <div className="flex items-center gap-1 font-medium text-foreground">
                         <DollarSign className="w-4 h-4" />
                         {payment.amount.toFixed(2)}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {getPaymentMethodIcon(payment.payment_method)}
+                        <div>
+                          <p className="text-sm font-medium">{payment.payment_method}</p>
+                          {payment.card_last_four && (
+                            <p className="text-xs text-muted-foreground">****{payment.card_last_four}</p>
+                          )}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>{getStatusBadge(payment.status)}</TableCell>

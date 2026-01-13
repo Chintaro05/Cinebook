@@ -29,7 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { 
+import {
   RefreshCw, 
   Clock, 
   CheckCircle, 
@@ -44,9 +44,12 @@ import {
   Wallet,
   Radio,
   Banknote,
-  TrendingUp
+  TrendingUp,
+  ChevronDown,
+  History
 } from 'lucide-react';
 import { useRefundablePayments, useUpdateRefundStatus, useBulkUpdateRefundStatus, RefundablePayment } from '@/hooks/useRefunds';
+import { RefundHistoryTimeline } from '@/components/admin/RefundHistoryTimeline';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -58,6 +61,7 @@ const ManageRefunds = () => {
   const bulkUpdateStatus = useBulkUpdateRefundStatus();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -69,6 +73,16 @@ const ManageRefunds = () => {
     open: boolean;
     newStatus: 'refund_processing' | 'refunded';
   }>({ open: false, newStatus: 'refunded' });
+
+  const toggleExpanded = (id: string) => {
+    const newSet = new Set(expandedIds);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setExpandedIds(newSet);
+  };
 
   // Real-time subscription for payments
   useEffect(() => {
@@ -378,102 +392,133 @@ const ManageRefunds = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredPayments.map((payment) => (
-                  <TableRow 
-                    key={payment.id}
-                    className={cn(selectedIds.has(payment.id) && "bg-primary/5")}
-                  >
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedIds.has(payment.id)}
-                        onCheckedChange={() => toggleSelect(payment.id)}
-                        disabled={payment.status === 'refunded'}
-                        aria-label={`Select refund for ${payment.profile?.full_name}`}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-muted-foreground" />
-                        <div>
-                          <p className="font-medium">{payment.profile?.full_name || 'Unknown'}</p>
-                          <p className="text-xs text-muted-foreground">{payment.profile?.email}</p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Film className="w-4 h-4 text-muted-foreground" />
-                        <div>
-                          <p className="font-medium">{payment.booking?.movie_title}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Seats: {payment.booking?.seats?.join(', ')}
-                          </p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-muted-foreground" />
-                        <div>
-                          <p className="font-medium">{payment.booking?.showtime_date}</p>
-                          <p className="text-xs text-muted-foreground">{payment.booking?.showtime_time}</p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1 font-medium text-foreground">
-                        <DollarSign className="w-4 h-4" />
-                        {payment.amount.toFixed(2)}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {getPaymentMethodIcon(payment.payment_method)}
-                        <div>
-                          <p className="text-sm font-medium">{payment.payment_method}</p>
-                          {payment.card_last_four && (
-                            <p className="text-xs text-muted-foreground">****{payment.card_last_four}</p>
-                          )}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>{getStatusBadge(payment.status)}</TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {format(new Date(payment.created_at), 'MMM d, yyyy')}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {payment.status === 'refund_pending' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleStatusUpdate(payment, 'refund_processing')}
-                            disabled={updateStatus.isPending}
-                            className="gap-1"
-                          >
-                            <RefreshCw className="w-3 h-3" />
-                            Start Processing
-                          </Button>
+                filteredPayments.map((payment) => {
+                  const isExpanded = expandedIds.has(payment.id);
+                  return (
+                    <>
+                      <TableRow 
+                        key={payment.id}
+                        className={cn(
+                          selectedIds.has(payment.id) && "bg-primary/5",
+                          isExpanded && "border-b-0"
                         )}
-                        {payment.status === 'refund_processing' && (
-                          <Button
-                            size="sm"
-                            variant="cinema"
-                            onClick={() => handleStatusUpdate(payment, 'refunded')}
-                            disabled={updateStatus.isPending}
-                            className="gap-1"
-                          >
-                            <CheckCircle className="w-3 h-3" />
-                            Mark Complete
-                          </Button>
-                        )}
-                        {payment.status === 'refunded' && (
-                          <span className="text-sm text-muted-foreground">Completed</span>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
+                      >
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedIds.has(payment.id)}
+                            onCheckedChange={() => toggleSelect(payment.id)}
+                            disabled={payment.status === 'refunded'}
+                            aria-label={`Select refund for ${payment.profile?.full_name}`}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <User className="w-4 h-4 text-muted-foreground" />
+                            <div>
+                              <p className="font-medium">{payment.profile?.full_name || 'Unknown'}</p>
+                              <p className="text-xs text-muted-foreground">{payment.profile?.email}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Film className="w-4 h-4 text-muted-foreground" />
+                            <div>
+                              <p className="font-medium">{payment.booking?.movie_title}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Seats: {payment.booking?.seats?.join(', ')}
+                              </p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-muted-foreground" />
+                            <div>
+                              <p className="font-medium">{payment.booking?.showtime_date}</p>
+                              <p className="text-xs text-muted-foreground">{payment.booking?.showtime_time}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1 font-medium text-foreground">
+                            <DollarSign className="w-4 h-4" />
+                            {payment.amount.toFixed(2)}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {getPaymentMethodIcon(payment.payment_method)}
+                            <div>
+                              <p className="text-sm font-medium">{payment.payment_method}</p>
+                              {payment.card_last_four && (
+                                <p className="text-xs text-muted-foreground">****{payment.card_last_four}</p>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>{getStatusBadge(payment.status)}</TableCell>
+                        <TableCell className="text-muted-foreground text-sm">
+                          {format(new Date(payment.created_at), 'MMM d, yyyy')}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => toggleExpanded(payment.id)}
+                              className="gap-1 text-muted-foreground hover:text-foreground"
+                            >
+                              <History className="w-3 h-3" />
+                              <ChevronDown className={cn(
+                                "w-3 h-3 transition-transform",
+                                isExpanded && "rotate-180"
+                              )} />
+                            </Button>
+                            {payment.status === 'refund_pending' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleStatusUpdate(payment, 'refund_processing')}
+                                disabled={updateStatus.isPending}
+                                className="gap-1"
+                              >
+                                <RefreshCw className="w-3 h-3" />
+                                Start Processing
+                              </Button>
+                            )}
+                            {payment.status === 'refund_processing' && (
+                              <Button
+                                size="sm"
+                                variant="cinema"
+                                onClick={() => handleStatusUpdate(payment, 'refunded')}
+                                disabled={updateStatus.isPending}
+                                className="gap-1"
+                              >
+                                <CheckCircle className="w-3 h-3" />
+                                Mark Complete
+                              </Button>
+                            )}
+                            {payment.status === 'refunded' && (
+                              <span className="text-sm text-muted-foreground">Completed</span>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {isExpanded && (
+                        <TableRow key={`${payment.id}-history`} className="bg-muted/30 hover:bg-muted/30">
+                          <TableCell colSpan={9} className="py-4 px-8">
+                            <RefundHistoryTimeline
+                              paymentId={payment.id}
+                              currentStatus={payment.status}
+                              createdAt={payment.created_at}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
+                  );
+                })
               )}
             </TableBody>
           </Table>

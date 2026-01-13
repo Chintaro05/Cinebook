@@ -187,6 +187,44 @@ export type Database = {
         }
         Relationships: []
       }
+      refund_status_history: {
+        Row: {
+          changed_by: string | null
+          created_at: string
+          id: string
+          new_status: string
+          notes: string | null
+          old_status: string | null
+          payment_id: string
+        }
+        Insert: {
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          new_status: string
+          notes?: string | null
+          old_status?: string | null
+          payment_id: string
+        }
+        Update: {
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          new_status?: string
+          notes?: string | null
+          old_status?: string | null
+          payment_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "refund_status_history_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       screens: {
         Row: {
           capacity: number

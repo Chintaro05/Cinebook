@@ -4,6 +4,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import {
   Table,
   TableBody,
@@ -68,11 +70,13 @@ const ManageRefunds = () => {
     open: boolean;
     payment: RefundablePayment | null;
     newStatus: 'refund_processing' | 'refunded';
-  }>({ open: false, payment: null, newStatus: 'refund_processing' });
+    notes: string;
+  }>({ open: false, payment: null, newStatus: 'refund_processing', notes: '' });
   const [bulkConfirmDialog, setBulkConfirmDialog] = useState<{
     open: boolean;
     newStatus: 'refund_processing' | 'refunded';
-  }>({ open: false, newStatus: 'refunded' });
+    notes: string;
+  }>({ open: false, newStatus: 'refunded', notes: '' });
 
   const toggleExpanded = (id: string) => {
     const newSet = new Set(expandedIds);
@@ -159,7 +163,7 @@ const ManageRefunds = () => {
   };
 
   const handleStatusUpdate = (payment: RefundablePayment, newStatus: 'refund_processing' | 'refunded') => {
-    setConfirmDialog({ open: true, payment, newStatus });
+    setConfirmDialog({ open: true, payment, newStatus, notes: '' });
   };
 
   const confirmStatusUpdate = () => {
@@ -168,9 +172,10 @@ const ManageRefunds = () => {
         paymentId: confirmDialog.payment.id,
         newStatus: confirmDialog.newStatus,
         sendEmail: true,
+        notes: confirmDialog.notes,
       });
     }
-    setConfirmDialog({ open: false, payment: null, newStatus: 'refund_processing' });
+    setConfirmDialog({ open: false, payment: null, newStatus: 'refund_processing', notes: '' });
   };
 
   // Bulk selection handlers
@@ -197,20 +202,25 @@ const ManageRefunds = () => {
 
   const handleBulkComplete = () => {
     if (selectedIds.size === 0) return;
-    setBulkConfirmDialog({ open: true, newStatus: 'refunded' });
+    setBulkConfirmDialog({ open: true, newStatus: 'refunded', notes: '' });
   };
 
   const confirmBulkUpdate = () => {
     const paymentIds = Array.from(selectedIds);
     bulkUpdateStatus.mutate(
-      { paymentIds, newStatus: bulkConfirmDialog.newStatus, sendEmails: true },
+      { 
+        paymentIds, 
+        newStatus: bulkConfirmDialog.newStatus, 
+        sendEmails: true,
+        notes: bulkConfirmDialog.notes,
+      },
       {
         onSuccess: () => {
           setSelectedIds(new Set());
         },
       }
     );
-    setBulkConfirmDialog({ open: false, newStatus: 'refunded' });
+    setBulkConfirmDialog({ open: false, newStatus: 'refunded', notes: '' });
   };
 
   const selectedCount = selectedIds.size;
@@ -525,7 +535,7 @@ const ManageRefunds = () => {
         </Card>
 
         {/* Confirmation Dialog */}
-        <AlertDialog open={confirmDialog.open} onOpenChange={(open) => !open && setConfirmDialog({ open: false, payment: null, newStatus: 'refund_processing' })}>
+        <AlertDialog open={confirmDialog.open} onOpenChange={(open) => !open && setConfirmDialog({ open: false, payment: null, newStatus: 'refund_processing', notes: '' })}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>
@@ -546,6 +556,19 @@ const ManageRefunds = () => {
                 )}
               </AlertDialogDescription>
             </AlertDialogHeader>
+            <div className="py-4">
+              <Label htmlFor="admin-notes" className="text-sm font-medium">
+                Admin Notes (optional)
+              </Label>
+              <Textarea
+                id="admin-notes"
+                placeholder="Add notes about this refund..."
+                value={confirmDialog.notes}
+                onChange={(e) => setConfirmDialog(prev => ({ ...prev, notes: e.target.value }))}
+                className="mt-2"
+                rows={3}
+              />
+            </div>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={confirmStatusUpdate} className="gap-2">
@@ -557,7 +580,7 @@ const ManageRefunds = () => {
         </AlertDialog>
 
         {/* Bulk Confirmation Dialog */}
-        <AlertDialog open={bulkConfirmDialog.open} onOpenChange={(open) => !open && setBulkConfirmDialog({ open: false, newStatus: 'refunded' })}>
+        <AlertDialog open={bulkConfirmDialog.open} onOpenChange={(open) => !open && setBulkConfirmDialog({ open: false, newStatus: 'refunded', notes: '' })}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Complete {selectedCount} Refunds?</AlertDialogTitle>
@@ -566,6 +589,19 @@ const ManageRefunds = () => {
                 Make sure all refunds have been processed in your payment system.
               </AlertDialogDescription>
             </AlertDialogHeader>
+            <div className="py-4">
+              <Label htmlFor="bulk-admin-notes" className="text-sm font-medium">
+                Admin Notes for all refunds (optional)
+              </Label>
+              <Textarea
+                id="bulk-admin-notes"
+                placeholder="Add notes for all selected refunds..."
+                value={bulkConfirmDialog.notes}
+                onChange={(e) => setBulkConfirmDialog(prev => ({ ...prev, notes: e.target.value }))}
+                className="mt-2"
+                rows={3}
+              />
+            </div>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={confirmBulkUpdate} className="gap-2">

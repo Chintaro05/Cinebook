@@ -70,11 +70,13 @@ export function useUpdateRefundStatus() {
     mutationFn: async ({ 
       paymentId, 
       newStatus,
-      sendEmail = true 
+      sendEmail = true,
+      notes
     }: { 
       paymentId: string; 
       newStatus: 'refund_processing' | 'refunded';
       sendEmail?: boolean;
+      notes?: string;
     }) => {
       // First get the payment details for the email
       const { data: payment, error: fetchError } = await supabase
@@ -102,6 +104,17 @@ export function useUpdateRefundStatus() {
         .eq('id', paymentId);
 
       if (updateError) throw updateError;
+
+      // Insert history record with notes (trigger handles basic history, we add notes separately)
+      if (notes?.trim()) {
+        await supabase
+          .from('refund_status_history')
+          .update({ notes: notes.trim() })
+          .eq('payment_id', paymentId)
+          .eq('new_status', newStatus)
+          .order('created_at', { ascending: false })
+          .limit(1);
+      }
 
       // Send email notification if requested
       if (sendEmail && profile?.email) {
@@ -159,11 +172,13 @@ export function useBulkUpdateRefundStatus() {
     mutationFn: async ({ 
       paymentIds, 
       newStatus,
-      sendEmails = true 
+      sendEmails = true,
+      notes
     }: { 
       paymentIds: string[]; 
       newStatus: 'refund_processing' | 'refunded';
       sendEmails?: boolean;
+      notes?: string;
     }) => {
       const results = [];
       
@@ -199,6 +214,17 @@ export function useBulkUpdateRefundStatus() {
         if (updateError) {
           console.error(`Failed to update payment ${paymentId}:`, updateError);
           continue;
+        }
+
+        // Update history with notes if provided
+        if (notes?.trim()) {
+          await supabase
+            .from('refund_status_history')
+            .update({ notes: notes.trim() })
+            .eq('payment_id', paymentId)
+            .eq('new_status', newStatus)
+            .order('created_at', { ascending: false })
+            .limit(1);
         }
 
         results.push({ paymentId, success: true });

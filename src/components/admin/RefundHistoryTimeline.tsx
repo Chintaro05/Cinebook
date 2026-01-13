@@ -1,6 +1,6 @@
 import { useRefundHistory, useRefundHistoryRealtime } from '@/hooks/useRefundHistory';
 import { format } from 'date-fns';
-import { Clock, RefreshCw, CheckCircle, AlertCircle, ArrowRight, Loader2 } from 'lucide-react';
+import { Clock, RefreshCw, CheckCircle, AlertCircle, ArrowRight, Loader2, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
@@ -138,7 +138,10 @@ export function RefundHistoryTimeline({ paymentId, currentStatus, createdAt }: R
                     {format(new Date(event.timestamp), 'MMM d, yyyy • h:mm a')}
                   </p>
                   {event.notes && (
-                    <p className="text-xs text-muted-foreground mt-1 italic">{event.notes}</p>
+                    <div className="mt-1.5 flex items-start gap-1.5 text-xs bg-muted/50 px-2 py-1.5 rounded border">
+                      <MessageSquare className="w-3 h-3 mt-0.5 text-muted-foreground shrink-0" />
+                      <span className="text-foreground">{event.notes}</span>
+                    </div>
                   )}
                 </div>
               </div>
